@@ -1,0 +1,20 @@
+# 
+# This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
+# 
+# Copyright 2007-2020 Broadcom Inc. All rights reserved.
+
+include ${BUILD_DIR}/src/tools.mk
+
+ifeq ($(filter ALL,$(EXT_PHY_LIST)),ALL)
+PHY_LIST = $(EXT_PHY_ALL)
+else
+PHY_LIST = $(EXT_PHY_LIST)
+endif
+
+RELEASE_ENABLE=1
+
+OPTION_CFLAGS += $(foreach phy,$(filter $(PHY_LIST), $(EXT_PHY_ALL)), -DINCLUDE_PHY_$(phy))
+
+BOBJS += src/soc/phy/phyident.o 
+  
+include rules.mk

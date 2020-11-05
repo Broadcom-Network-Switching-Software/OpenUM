@@ -1,0 +1,89 @@
+/*
+ * 
+ *
+ * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
+ * 
+ * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ */
+
+OUTPUT_FORMAT("elf32-littlearm", "elf32-littlearm", "elf32-littlearm")
+OUTPUT_ARCH(arm)
+ENTRY(startup)
+SECTIONS
+{
+    .packet_buf 0x1b000040 (NOLOAD) : {
+        *(.packet_buf)
+        . = ALIGN(4);
+        packet_buf_end = .;
+    }
+
+	. = CFE_TEXT_START;
+	. = ALIGN(4);
+	.text : {
+		_ftext = . ;
+		text_start = .;
+		startarm.o (.text)
+		*(.init)
+		*(.text)
+		*(.text.*)
+		*(.fini)
+		_etext = .;
+		text_end = .;
+	}
+
+#if (!CFG_RAMAPP)
+    .mmu_table : {
+		. = ALIGN(0x10000);
+		*(section_mmu_table)
+	}
+#endif
+
+	. = ALIGN(4);
+	.rodata : {
+		rodata_start = .;
+		*(.rdata)
+		*(.rdata.*)
+		*(.rodata)
+		*(.rodata.*)
+		rodata_end = .;
+	}
+
+	. = ALIGN(4);
+#if (CFG_RAMAPP)
+	.data : {
+#else
+    data_start_load = .;
+	.data CFE_DATA_START :
+	  AT ( data_start_load ) {
+#endif
+	  data_start = .;
+		_fdata = .;
+		*(.2ram)
+		*(.data)
+		*(.data.*)
+		*(.sdata)
+		data_end = .;
+		_edata = .;
+	}
+
+	. = ALIGN(4);
+	.bss : {
+		_fbss = .;
+		bss_start = .;
+		*(.sbss)
+		*(.scommon)
+		*(.bss)
+		*(.bss.*)
+		*(COMMON)
+		bss_end = .;
+	}
+
+	/DISCARD/ : { *(.dynstr*) }
+	/DISCARD/ : { *(.dynamic*) }
+	/DISCARD/ : { *(.plt*) }
+	/DISCARD/ : { *(.interp*) }
+	/DISCARD/ : { *(.gnu*) }
+
+	_end = .;
+
+}

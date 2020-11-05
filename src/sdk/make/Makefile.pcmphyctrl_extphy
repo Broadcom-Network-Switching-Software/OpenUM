@@ -1,0 +1,237 @@
+# 
+# This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
+# 
+# Copyright 2007-2020 Broadcom Inc. All rights reserved.
+
+
+include ${BUILD_DIR}/src/tools.mk
+ifeq ($(RELEASE_BUILD),1)
+PHY_LIST = $(EXT_PHY_ALL)
+else
+PHY_LIST = $(EXT_PHY_LIST)
+endif 
+
+# build all external phy
+OPTION_CFLAGS += $(foreach phy, $(PHY_LIST), -DINCLUDE_PHY_$(phy)) 
+
+BOBJS += src/soc/phy/phycommon.o 
+BOBJS += src/soc/phy/phyfege.o 
+BOBJS += src/soc/phy/phyfegecdiag.o 
+BOBJS += src/soc/phy/phymod_ctrl.o 
+BOBJS += src/soc/phy/phymod_ids.o 
+BOBJS += src/soc/phy/phyreg.o 
+BOBJS += src/soc/phy/phyecd.o 
+BOBJS += src/soc/phy/phyi2c.o 
+BOBJS += src/soc/phy/phymod_sim.o 
+BOBJS += src/soc/phy/phynull.o 
+BOBJS += src/soc/phy/physfp.o 
+
+ifneq ($(filter SIMUL, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/physim.o 
+endif
+
+ifneq ($(filter EGPHY28, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/phy_egphy28.o 
+endif
+
+ifneq ($(filter 522X, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/phy522x.o
+endif
+ifneq ($(filter 54XX, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/phy54xx.o 
+endif
+ifneq ($(filter EGPHY28 5464, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/phy5464cdiag.o 
+endif
+
+ifneq ($(filter 5464, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy5464robo.o 
+BOBJS += src/soc/phy/phy5464.o 
+endif
+
+ifneq ($(filter 5482, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/phy5482.o 
+BOBJS += src/soc/phy/phy5482robo.o 
+endif
+
+ifneq ($(filter 54684, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/phy54684.o 
+endif 
+
+ifneq ($(filter 542XX, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy522xcdiag.o 
+endif
+#BOBJS += src/soc/phy/phy5421S.o 
+
+ifneq ($(filter 542XX, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/phy542xx.o 
+endif
+
+ifneq ($(filter 54580, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/phy545xx.o 
+endif
+
+ifneq ($(filter 54616, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/phy54616.o 
+endif
+
+ifneq ($(filter 54640, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/phy54640.o 
+endif
+
+ifneq ($(filter 54680 54680E 54681E, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/phy54680.o 
+BOBJS += src/soc/phy/phyacd.o 
+endif
+
+ifneq ($(filter 54682, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/phy54682.o 
+endif
+
+ifneq ($(filter 84728, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/phy84728.o 
+BOBJS += src/soc/phy/phy84728_firmware.o
+endif
+
+ifneq ($(filter 54880, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/phy54880.o 
+endif
+
+#
+#  84888
+#
+ifneq ($(filter 8481, $(PHY_LIST)),) 
+CFLAGS += -UCOMPILER_HAS_DOUBLE
+BOBJS += src/soc/phy/phy8481.o 
+BOBJS += src/soc/phy/phy8481_firmware.o 
+BOBJS += src/soc/phy/chip/orca/eagle_orca_src/eagle_phy_1_dependencies.o
+BOBJS += src/soc/phy/chip/orca/eagle_orca_src/eagle_phy_1_functions.o
+BOBJS += src/soc/phy/chip/koi/merlin_koi_src/merlin_koi_functions.o
+BOBJS += src/soc/phy/chip/koi/merlin_koi_src/merlin_koi_dependencies.o
+endif
+
+ifneq ($(filter 82328, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy82328.o 
+BOBJS += src/soc/phy/phy82328_ucode.o 
+endif
+#
+# PHY driver with MACSEC
+#
+
+ifneq ($(filter 54380, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/phy543xx.o
+endif
+
+ifneq ($(filter 8729, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy8729.o 
+endif
+
+ifneq ($(filter 84756, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy84756.o 
+BOBJS += src/soc/phy/phy84756_fcmap.o 
+BOBJS += src/soc/phy/phy84756_i2c.o 
+endif
+
+ifneq ($(filter 84334, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy84334.o 
+endif
+
+ifneq ($(filter 84749, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy84749.o 
+endif
+
+#
+# PHY drivers need PHYMOD SUPPORT  
+#
+ifneq ($(filter 8806X, $(PHY_LIST)),) 
+BOBJS += src/soc/phy/phy8806x.o 
+BOBJS += src/soc/phy/phy8806x_firmware.o 
+endif
+
+#
+#  82381 need PHYMOD FURIA FURIA_82212 support
+#
+ifneq ($(filter 82381, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy82381.o 
+endif
+
+#
+#  82764 need PHYMOD SESTO support
+#
+ifneq ($(filter 82764, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy82764.o 
+endif
+
+#
+#  82780 need PHYMOD QUADRA28 support
+#
+ifneq ($(filter 82780, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy82780.o 
+endif
+
+#
+#  82864 need PHYMOD MADURA support
+#
+ifneq ($(filter 82864, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy82864.o 
+endif
+
+ifneq ($(filter 84740, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy84740.o 
+BOBJS += src/soc/phy/phy84740_ucode.o 
+BOBJS += src/soc/phy/phy84752_ucode.o 
+BOBJS += src/soc/phy/phy84753_ucode.o 
+BOBJS += src/soc/phy/phy84754_ucode.o 
+BOBJS += src/soc/phy/phy84758_ucode.o 
+BOBJS += src/soc/phy/phy84064_ucode.o 
+BOBJS += src/soc/phy/phy84318_ucode.o 
+BOBJS += src/soc/phy/phy84780_ucode.o 
+BOBJS += src/soc/phy/phy84784_ucode.o 
+endif
+
+ifneq ($(filter 84328, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy84328.o 
+BOBJS += src/soc/phy/phy84328_ucode.o 
+endif
+
+
+ifneq ($(filter 84793, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy84793.o 
+BOBJS += src/soc/phy/phy84793_ucode.o 
+endif
+
+ifneq ($(filter 8703, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy8703.o 
+endif
+
+ifneq ($(filter 8705, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy8705.o 
+endif
+
+ifneq ($(filter 8706, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy8706.o 
+BOBJS += src/soc/phy/phy8727c_ucode.o 
+BOBJS += src/soc/phy/phy8747_ucode.o 
+endif
+
+ifneq ($(filter 8040, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy8040.o 
+endif
+
+ifneq ($(filter 8750, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy8750.o 
+BOBJS += src/soc/phy/phy8754_ucode.o 
+endif
+
+
+ifneq ($(filter 8072, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phy8072.o 
+endif
+
+ifneq ($(filter 8703, $(PHY_LIST)),)
+#ifneq ($(filter 8703 8705 8706 8750 8072, $(PHY_LIST)),)
+BOBJS += src/soc/phy/phyxehg.o
+endif 
+#BOBJS += src/soc/phy/phy_portmod_dispatch.o 
+
+include rules.mk

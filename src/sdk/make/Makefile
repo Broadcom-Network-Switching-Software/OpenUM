@@ -1,0 +1,156 @@
+# 
+# This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
+# 
+# Copyright 2007-2020 Broadcom Inc. All rights reserved.
+
+QUIET ?= @
+include ${BUILD_DIR}/src/tools.mk
+
+SDK_BUILD_DIR := $(TOP)/sdk/make
+SDK_MAKE_DIR  := $(TOP)/sdk/make
+SDK_RELEASE_DIR := $(TOP)/sdk/release/
+ifneq ($(SDK),)
+SDK_RELEASE_VERSION ?= $(shell cat $$SDK_DIR/RELEASE)
+endif
+
+ifeq ($(SDK_RELEASE_VERSION),)
+SDK_RELEASE_VERSION := sdk-unkown
+endif
+
+#
+#
+#  ESW CHIP Supported by SDK    
+#      
+#      The ESW_CHIP_NAMES should sync with SDK/make/Make.config
+#
+# 
+ESW_CHIP_NAMES = BCM_5675_A0 BCM_56504_A0 BCM_56504_B0 BCM_56314_A0 BCM_56112_A0 \
+  BCM_56304_B0 BCM_56102_A0 BCM_56580_A0 BCM_56700_A0 BCM_56800_A0 BCM_56218_A0 \
+  BCM_56514_A0 BCM_56624_A0 BCM_56680_A0 BCM_56680_B0 BCM_56224_A0 BCM_56224_B0 BCM_56820_A0 \
+  BCM_53314_A0 BCM_56725_A0 BCM_56624_B0 BCM_56634_A0 BCM_56634_B0 \
+  BCM_56524_A0 BCM_56524_B0 BCM_56685_A0 BCM_56685_B0 BCM_56334_A0 BCM_56334_B0 \
+  BCM_56840_A0 BCM_56840_B0 BCM_56142_A0 BCM_53324_A0 BCM_88732_A0 BCM_56440_A0 \
+  BCM_56440_B0 BCM_56640_A0 BCM_56850_A0 BCM_56450_A0 BCM_56450_B0 BCM_56450_B1 BCM_56340_A0 \
+  BCM_56150_A0 BCM_53400_A0 BCM_56960_A0 BCM_56860_A0 BCM_56560_A0 BCM_56260_A0 BCM_56260_B0 \
+  BCM_56160_A0 BCM_56560_B0 BCM_56270_A0 BCM_56965_A0 BCM_56670_A0 BCM_53570_A0 BCM_53540_A0
+ 
+#
+#
+#  External PHY Supporting list 
+#
+#
+EXT_PHY_ALL =  522X 5464 5482 54616 54680 54680E 52681E 54880E 54682 54684 54640 54640E 54880 
+EXT_PHY_ALL += 8703 8705 8706  8072 8040 8481 8750  8729   84740  84756 54380 542XX 84334  84728 
+EXT_PHY_ALL += 84749 84328 84793 82328 XEHG EGPHY28 
+# EXT_PHY_ALL += 5421S SIMUL
+# PHY drivers need PHYMOD SUPPORT  
+# EXT_PHY_ALL += 82381 82764 82780 8806X 82864 82109 
+
+SOC_MAX_NUM_PORTS = $(shell (egrep 'SOC_MAX_NUM_PORTS' $(SYSTEM_DIR)/include/board.h | awk '{print $$3}' | sed 's/[\\(\\)]//g'))
+CFLAGS += -D$(CHIP_NAME)
+CFLAGS += -D_SHR_PBMP_WIDTH=$(SOC_MAX_NUM_PORTS) 
+#CFLAGS += -D_SOC_ALLENUM_H 
+CFLAGS += -DSOC_MAX_NUM_PORTS=$(SOC_MAX_NUM_PORTS) -DSOC_MAX_NUM_BLKS=$(SOC_MAX_NUM_BLKS) 
+CFLAGS += -DSOC_MAX_NUM_SWITCH_DEVICES=1 
+CFLAGS += -DSOC_MAX_NUM_ETHER_DEVICES=0
+CFLAGS += -D_PHY_CONFIG_H $(foreach phy,$(INT_PHY_LIST), -DINCLUDE_$(phy)) 
+CFLAGS += $(foreach phy,$(PHYMOD_LIST), -DPHYMOD_$(phy)_SUPPORT) 
+CFLAGS += $(foreach chipname, $(filter-out $(CHIP_NAME), $(ESW_CHIP_NAMES)), -DNO_$(chipname)) 
+ifneq (,(findstring 54880,$(EXT_PHY_LIST)))
+CFLAGS += -DINCLUDE_LONGREACH
+endif
+
+#
+# PHYMOD library support
+#
+# PHYMOD_CHIP_NAMES defines which internal PHYs require PHYMOD support.
+# PHYMOD_PHY_LIST defines which external PHYs require PHYMOD support.
+#
+PHYMOD_CHIP_NAMES =  BCM_53570_A0 BCM_53400_A0 BCM_88650_A0 BCM_88950_A0 BCM_88790_A0 BCM_88675_A0 BCM_56860_A0 BCM_88375_A0 
+PHYMOD_CHIP_NAMES += BCM_88680_A0 BCM_88690_A0 BCM_88470_A0 BCM_88270_A0 BCM_8206_A0  BCM_56960_A0 BCM_88202_A0 BCM_56560_A0 
+PHYMOD_CHIP_NAMES += BCM_56560_B0 BCM_56260_A0 BCM_56160_A0 BCM_56260_B0 BCM_56965_A0 BCM_56670_A0
+PHYMOD_CHIP_NAMES += BCM_53540_A0
+PHYMOD_PHY_LIST =   82381 82764 8806X 82864 82109
+
+# Define default PHYMOD support based on included PHYs
+ifeq (,$(PHYMOD_SUPPORT))
+ifneq (,$(filter $(PHYMOD_CHIP_NAMES), $(CHIP_NAME)))
+PHYMOD_SUPPORT = 1
+endif
+endif
+ifeq (,$(PHYMOD_SUPPORT))
+ifneq (,$(filter $(PHYMOD_PHY_LIST),$(EXT_PHY_LIST)))
+PHYMOD_SUPPORT = 1
+endif
+endif
+
+# Include PHYMOD diagnotics by default
+ifeq (,$(PHYMOD_DIAG))
+PHYMOD_DIAG = $(PHYMOD_SUPPORT)
+endif
+
+# Configure PHYMOD build
+ifeq (1,$(PHYMOD_SUPPORT))
+BUILD_PHYMOD = 1
+CFLAGS += -I${SDK_PATCH_DIR}/libs/phymod/include -I${SDK_DIR}/libs/phymod/include
+CFLAGS += -DPHYMOD_SUPPORT
+CFLAGS += -DPHYMOD_TIER1_SUPPORT
+CFLAGS += -DPHYMOD_INCLUDE_CUSTOM_CONFIG
+CFLAGS += -DPHYMOD_CONFIG_INCLUDE_CHIP_SYMBOLS=1
+CFLAGS += -DPHYMOD_CONFIG_INCLUDE_FIELD_INFO=0 
+CFLAGS += -DPHY_NUM_SIMS=0
+ifeq (1,$(PHYMOD_DIAG))
+#CFLAGS += -DPHYMOD_DIAG
+endif
+endif
+
+# Symbol control
+CFLAGS += -DPHYMOD_CONFIG_EXCLUDE_CHIP_SYMBOLS_BCMI_TSCE_XGXS
+CFLAGS += -DPHYMOD_CONFIG_EXCLUDE_CHIP_SYMBOLS_BCMI_EAGLE_XGXS
+CFLAGS += -DPHYMOD_CONFIG_EXCLUDE_CHIP_SYMBOLS_BCMI_TSCF_XGXS
+CFLAGS += -DPHYMOD_CONFIG_EXCLUDE_CHIP_SYMBOLS_BCMI_FALCON_XGXS
+CFLAGS += -DPHYMOD_CONFIG_EXCLUDE_CHIP_SYMBOLS_BCMI_SGMIIP2X4_SERDES
+CFLAGS += -DPHYMOD_CONFIG_EXCLUDE_CHIP_SYMBOLS_BCMI_VIPER_XGXS
+CFLAGS += -DPHYMOD_CONFIG_EXCLUDE_CHIP_SYMBOLS_BCMI_QSGMIIE_XGXS
+
+# SDK CFLAGS 
+CFLAGS += -DBCM_ESW_SUPPORT 
+CFLAGS += -I$(SDK_PATCH_DIR)/include -I$(SDK_PATCH_DIR)/phymod/include -I$(SDK_PATCH_DIR)/libs/phymod/include  -I$(SDK_PATCH_DIR)/libs/phymod/include -I$(SDK_PATCH_DIR)/src/soc/phy/phy8806x/include -I$(SDK_PATCH_DIR)/src/soc/phy/wcmod/include -I$(SDK_PATCH_DIR)/src/soc/phy -I$(SDK_PATCH_DIR)/systems
+CFLAGS += -I$(SDK_DIR)/include -I$(SDK_DIR)/phymod/include -I$(SDK_DIR)/libs/phymod/include -I$(SDK_DIR)/libs/phymod/include -I$(SDK_DIR)/src/soc/phy/phy8806x/include -I$(SDK_DIR)/src/soc/phy/wcmod/include -I$(SDK_DIR)/src/soc/phy -I$(SDK_DIR)/systems
+
+CFLAGS := $(filter-out -Werror, $(CFLAGS))
+
+LIB_OUTPUT_DIR = ${BUILD_DIR}/lib 
+OBJ_OUTPUT_DIR = ${SDK_BUILD_DIR}
+SRC_TOP_DIR = ${SDK_PATCH_DIR}
+CURRENT_DIR = $(shell pwd)
+
+LIBS =  pcmphyctrl_chip pcmphyctrl_intphy pcmphyctrl_extphy pcmphyctrl_phymod pcmphyctrl_common pcmphyctrl_physelect
+
+export SDK_RELEASE_DIR SDK_RELEASE_VERSION EXT_PHY_ALL RELEASE_BUILD
+
+all: $(LIBS) 
+	$(QUIET)echo "tar ball"
+	$(QUIET)echo CHIP_NAME=$(CHIP_NAME)
+
+pcmphyctrl_release_build:
+	$(QUIET)echo "Release SDK PHYCTRL library ...."
+	$(QUIET)python sanscript.py -d $(SDK_RELEASE_DIR)
+	mkdir -p $(SDK_RELEASE_DIR)
+	$(QUIET)tar -C $(SDK_RELEASE_DIR) -cvjf $(TOP)/$(SDK_RELEASE_VERSION).tar.gz ./
+
+$(LIBS): 
+	@echo "Build $(BUILD_DIR)/lib/lib$@.a ...... "
+	@make --no-print-directory -f $(SDK_MAKE_DIR)/Makefile.$@ TARGETLIB="$(BUILD_DIR)/lib/lib$@.a" CFLAGS="$(CFLAGS)"  LIB_OUTPUT_DIR="$(LIB_OUTPUT_DIR)"  OBJ_OUTPUT_DIR="$(OBJ_OUTPUT_DIR)" SRC_TOP_DIR="$(SRC_TOP_DIR)" EXT_PHY_SUPPORT_LIST="$(EXT_PHY_SUPPORT_LIST)" EXT_PHY_LIST="$(EXT_PHY_LIST)"
+	
+clean:
+	find ${SDK_BUILD_DIR} -name *.o | xargs rm -Rf
+	find ${SDK_BUILD_DIR} -name *.d | xargs rm -Rf
+	find ${SDK_BUILD_DIR} -name *.gcno | xargs rm -Rf
+	find ${SDK_BUILD_DIR} -name *.gcda | xargs rm -Rf
+	rm -f ${ALLLIBS} 
+
+
+
+
+
