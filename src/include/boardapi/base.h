@@ -1,5 +1,5 @@
 /*
- * 
+ * $Id: base.h,v 1.4 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -9,39 +9,96 @@
 #ifndef _BOARDAPI_BASE_H_
 #define _BOARDAPI_BASE_H_
 
-/* Number of units (should bed defined in board.h) */
-#define board_unit_count() BOARD_NUM_OF_UNITS
+/*!
+ * \brief Get the number of units.
+ *
+ * \return mumber of units. (should be defined in board.h)
+ */
+#define board_unit_count(void) BOARD_NUM_OF_UNITS
 
-/* Max number of ports */
-#define board_max_port_count() BOARD_MAX_NUM_OF_PORTS
-
-/* Board name */
+/*!
+ * \brief Get the board's name.
+ *
+ * \return Board name.
+ */
 extern const char *board_name(void) REENTRANT;
 
-/* Get the number of user ports */
+/*!
+ * \brief Get the port count of user ports.
+ *
+ * \return Port count.
+ */
 extern uint8 board_uport_count(void) REENTRANT;
 
-/* Convert user port to unit and chip internal logical port */
-extern sys_error_t board_uport_to_lport(uint16 uport, 
-                                          uint8 *unit, 
+/*!
+ * \brief Map a user port to a chip logical port.
+ *
+ * \param [in] uport The user port
+ * \param [out] unit The chip unit number
+ * \param [out] lport The chip logical port
+ *
+ * \retval SYS_OK No errors.
+ */
+extern sys_error_t board_uport_to_lport(uint16 uport,
+                                          uint8 *unit,
                                           uint8 *lport) REENTRANT;
 
-/* Convert unit and chip internal logical port to user port */
-extern sys_error_t board_lport_to_uport(uint8 unit, 
-                                         uint8 lport, 
+/*!
+ * \brief Map a chip logical port to a user port.
+ *
+ * \param [in] unit The chip unit number
+ * \param [in] lport The chip logical port
+ * \param [out] uport The user port
+ *
+ * \retval SYS_OK No errors.
+ */
+extern sys_error_t board_lport_to_uport(uint8 unit,
+                                         uint8 lport,
                                          uint16 *uport) REENTRANT;
 
-/* Convert user port list to  chip internal logical port bitmap for specified unit */
+/*!
+ * \brief Map the user port bitmap array (uplist) to the chip logical port bitmap (lpbmp) on selected chip unit .
+ *
+ * \param [in] uplist The user port bit map array which may cover many chips
+ * \param [in] unit The selected chip unit number
+ * \param [out] lpbmp The chip logical port bit map
+ *
+ * \retval SYS_OK No errors.
+ */
 extern sys_error_t board_uplist_to_lpbmp(uint8 *uplist, uint8 unit,
                                           pbmp_t *lpbmp) REENTRANT;
 
-/* Convert unit and  chip internal logical port bitmap to user port list */
+/*!
+ * \brief Map the chip logical port bit map (lpbmp) to a user port bit map array (uplist) on selected chip unit.
+ *
+ * \param [in] unit The selected chip unit number
+ * \param [in] lpbmp The chip logical port bit map
+ * \param [out] uplist The user port bit map array which may cover many chips
+ *
+ * \retval SYS_OK No errors.
+ */
 extern sys_error_t board_lpbmp_to_uplist(uint8 unit, pbmp_t lpbmp,
                                            uint8 *uplist) REENTRANT;
 
-/* Get SOC instance by unit */
+/*!
+ * \brief Get SoC by unit.
+ *
+ * \param [in] unit Unit number.
+ *
+ * \return Pointer to switch device (e.g., soc_switch_bcm5340x).
+ */
 extern soc_switch_t *board_get_soc_by_unit(uint8 unit) REENTRANT;
 
+/*!
+ * \brief Get chip devID and revID by unit.
+ *
+ * \param [in] unit Unit number.
+ * \param [out] dev The chip devID.
+ * \param [out] rev The chip devID.
+ *
+ * \retval SYS_OK No errors.
+ */
+extern sys_error_t board_chip_revision(uint8 unit, uint16 *dev, uint16 *rev);
 
 #ifndef CFG_PCM_SUPPORT_INCLUDED
 /* Get phy driver by user port */

@@ -1,3 +1,0 @@
-#define BCMI_QSGMIIE_SERDES_DRV_INSTALLED
-extern phy_driver_t bcmi_qsgmiie_serdes_drv;
-

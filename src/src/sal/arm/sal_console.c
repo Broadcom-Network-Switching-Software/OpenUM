@@ -1,4 +1,5 @@
 /*
+ * $Id: sal_console.c,v 1.11 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -18,7 +19,7 @@
 STATIC char lastchar;
 #endif /* CFG_CONSOLE_ENABLED */
 
-extern void sal_console_init(void);
+extern void sal_console_init(int reset);
 extern void sal_debugf(const char *fmt, ...);
 
 #if CFG_CONSOLE_ENABLED
@@ -102,7 +103,7 @@ um_console_print(const char *str)
 }
 
 void
-sal_console_init(void)
+sal_console_init(int reset)
 {
 
 }

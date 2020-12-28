@@ -1,4 +1,5 @@
 /*
+ * $Id: sal_timer.c,v 1.10 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -169,7 +170,7 @@ sal_sleep(tick_t ticks)
 }
 #endif /* !__BOOTLOADER__ */
 
-#ifdef CFG_PCM_SUPPORT_INCLUDED
+#if defined(CFG_PCM_SUPPORT_INCLUDED) || defined(CFG_RXTX_SUPPORT_ENABLED)
 /*
  * Function:
  *      sal_time_usecs
@@ -194,4 +195,3 @@ sal_time_usecs(void)
     return count;
 }
 #endif
-

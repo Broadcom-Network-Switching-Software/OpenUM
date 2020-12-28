@@ -1,4 +1,5 @@
 /*
+ * $Id: brd_rxtx.c,v 1.9 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -124,13 +125,14 @@ APIFUNC(brdimpl_rx_fill_buffer)(sys_pkt_t *pkt) REENTRANT
     } else {
         rx_pkt_list = spkt->next;
     }
-    
+
     spkt->buffer = pkt->pkt_data;
+    spkt->alloc_ptr = pkt->pkt_data;
     spkt->buflen = pkt->buf_len;
 
     pkt->next = rx_syspkt_list;
     rx_syspkt_list = pkt;
-    
+
     soc = board_get_soc_by_unit(0);
     SAL_ASSERT(soc != NULL);
 

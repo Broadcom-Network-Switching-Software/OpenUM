@@ -1,5 +1,5 @@
 /*
- * 
+ * $Id: system.h,v 1.20 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -35,8 +35,12 @@
 #endif /* CFG_FLASH_SUPPORT_ENABLED */
 #include "boardapi.h"
 #include "kernel.h"
-#include BOOT_SOC_INCLUDE_FILE 
+#include BOOT_SOC_INCLUDE_FILE
 #include "utils/ports.h"
 
+/* Default high priority task if device doesn't define. */
+#ifndef POLLED_IRQ
+#define POLLED_IRQ()
+#endif
 
 #endif /* _SYSTEM_H_ */

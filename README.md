@@ -2,7 +2,7 @@
 The Unmanged release provides basic L2 switching functionality for Broadcom Switch devices.
 Its recommended to review the [Getting started guide](https://github.com/Broadcom-Network-Switching-Software/OpenUM/blob/master/doc/Unmanaged-SWUM106.pdf) and the [UM software porting guide](https://github.com/Broadcom-Network-Switching-Software/OpenUM/blob/master/doc/Unmanaged-PG106.pdf)
 
-# Version 3.6.1
+# Version 3.8.0-PRE1
 This version provide UM support for [BCM53570](https://www.broadcom.com/products/ethernet-connectivity/switching/strataxgs/bcm53570)
 
 # Legal

@@ -1,5 +1,5 @@
 /*
- * 
+ * $Id: soc.h,v 1.35 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -28,6 +28,7 @@ typedef enum {
 typedef struct soc_rx_packet_s {
     /* Filled by upper caller */
     uint8   *buffer;
+    uint8   *alloc_ptr;                      /* Pointer for reusing buffer (internal). */
     uint16  buflen;
 
     /* Filled by soc RX engine */
@@ -37,6 +38,7 @@ typedef struct soc_rx_packet_s {
     uint8   lport;
     uint16  traffic_class;
     uint32  timestamp;
+    uint32  timestamp_upper;   /* Upper 32-bit of 64-bit timestamp */
     uint32  reserved1;
     uint32  reserved2;
 
@@ -48,6 +50,13 @@ typedef void (*SOC_RX_HANDLER)(soc_rx_packet_t *) REENTRANT;
 /* TX callback */
 #define SOC_TX_FLAG_TIMESTAMP_REQUEST               (1 << 0)
 #define SOC_TX_FLAG_USE_UNTAG_PORT_BITMAP           (1 << 1)
+/* TimeSync Packet Flags. */
+#define SOC_TX_FLAG_TIMESYNC_ONE_STEP                  (1 << 2) /* One step timestamp. */
+#define SOC_TX_FLAG_TIMESYNC_ONE_STEP_INGRESS_SIGN     (1 << 3) /* Ingress timestamp sign bit. */
+#define SOC_TX_FLAG_TIMESYNC_ONE_STEP_HDR_START_OFFSET (1 << 4) /* PTP header offset in packet buffer. */
+#define SOC_TX_FLAG_TIMESYNC_ONE_STEP_REGEN_UDP_CHKSUM (1 << 5) /* Regenerate UDP header checksum of PTP packet. */
+#define SOC_TX_FLAG_TIMESYNC_TWO_STEP                  (1 << 6) /* Two-step timestamp. */
+
 #define SOC_TX_TAG_MODE_FOLLOW_SWITCH_RULES         (0)
 #define SOC_TX_TAG_MODE_UNTAG_ALL                   (1)
 #define SOC_TX_TAG_MODE_TAG_ALL                     (2)
@@ -56,13 +65,14 @@ typedef void (*SOC_TX_CALLBACK)(struct soc_tx_packet_s *pkt) REENTRANT;
 typedef struct soc_tx_packet_s {
 
     /* Filled by caller */
-    uint8 * buffer;
+    uint8   *buffer;
     uint16  pktlen;
     uint16  flags;
     uint16  traffic_class;
-    pbmp_t  port_bitmap;    /* Follow switch ARL if empty */
-    pbmp_t  untag_bitmap;   /* Valid only if FOLLOW_VLAN_UNTAG_RULES not set */
-    uint8   tag_mode;       /* Valid only if port_bitmap is empty  */
+    pbmp_t  port_bitmap;     /* Follow switch ARL if empty */
+    pbmp_t  untag_bitmap;    /* Valid only if FOLLOW_VLAN_UNTAG_RULES not set */
+    uint8   tag_mode;        /* Valid only if port_bitmap is empty  */
+    uint8   timestamp_offset;/* Offset to place the timestamp in the packet. */
 
     /* Reserved */
     uint32  reserved1;
@@ -78,7 +88,7 @@ typedef struct soc_tx_packet_s {
     SOC_TX_CALLBACK callback;   /* Called after packet sent; Must set */
     void *cookie;
 
-    /* Used interally in SOC layer */
+    /* Used internally in SOC layer */
     uint32 internal0;
 
     /* For chaining */
@@ -166,6 +176,35 @@ typedef enum soc_vlan_type_s {
  *  L2 ARL related definitions
  */
 #define SOC_ARL_INVALID_BIN_ID      (-1)
+
+#ifdef CFG_SWITCH_SYNCE_INCLUDED
+/* SyncE Clock Source Type. */
+typedef enum bcm_time_synce_clock_src_type_e {
+    bcmTimeSynceClockSourcePrimary = 0, /* Primary Clock Source */
+    bcmTimeSynceClockSourceSecondary = 1 /* Secondary Clock Source */
+} bcm_time_synce_clock_src_type_t;
+
+/* SyncE Input Source Type. */
+typedef enum bcm_time_synce_input_src_type_e {
+    bcmTimeSynceInputSourceTypePort = 0, /* Input Source Port */
+    bcmTimeSynceInputSourceTypePLL = 1  /* Input Source PLL */
+} bcm_time_synce_input_src_type_t;
+
+typedef struct bcm_time_synce_clock_source_config_s {
+    bcm_time_synce_clock_src_type_t clk_src; /* SyncE Clock Source Primary or
+                                           Secondary */
+    bcm_time_synce_input_src_type_t input_src; /* Input source type Port or PLL */
+    uint32 pll_index;                   /* PLL index */
+    uint8 port;                    /* Logical port number */
+} bcm_time_synce_clock_source_config_t;
+
+/* bcm_time_synce_clock_source_control */
+typedef enum bcm_time_synce_clock_source_control_e {
+    bcmTimeSynceClockSourceControlSquelch = 0, /* Squelch of SyncE source */
+    bcmTimeSynceClockSourceControlFrequency = 1 /* Frequency of SyncE source */
+} bcm_time_synce_clock_source_control_t;
+
+#endif  /* CFG_SWITCH_SYNCE_INCLUDED */
 
 /*
  * SOC switch class

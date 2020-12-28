@@ -1,4 +1,4 @@
-# 
+# $Id: Makefile.pcmphyctrl_physelect,v 1.2 Broadcom SDK $
 # This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
 # 
 # Copyright 2007-2020 Broadcom Inc. All rights reserved.
@@ -15,6 +15,6 @@ RELEASE_ENABLE=1
 
 OPTION_CFLAGS += $(foreach phy,$(filter $(PHY_LIST), $(EXT_PHY_ALL)), -DINCLUDE_PHY_$(phy))
 
-BOBJS += src/soc/phy/phyident.o 
-  
+BOBJS += src/soc/phy/phyident.o
+
 include rules.mk

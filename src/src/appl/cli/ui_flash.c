@@ -1,4 +1,5 @@
 /*
+ * $Id: ui_flash.c,v 1.29 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -45,10 +46,10 @@ cli_cmd_flash(CLI_CMD_OP op) REENTRANT
         sal_printf("Flash utilities");
     } else {
         char name[64];
-#ifdef CFG_PRODUCT_REGISTRATION_INCLUDED        
+#ifdef CFG_PRODUCT_REGISTRATION_INCLUDED
         char serial_num[21];
         uint8 valid;
-#endif /* CFG_PRODUCT_REGISTRATION_INCLUDED */        
+#endif /* CFG_PRODUCT_REGISTRATION_INCLUDED */
 #ifdef CFG_FACTORY_CONFIG_INCLUDED
         factory_config_t fcfg;
 #endif /* CFG_FACTORY_CONFIG_INCLUDED */
@@ -63,10 +64,10 @@ cli_cmd_flash(CLI_CMD_OP op) REENTRANT
 #if CFG_UIP_STACK_ENABLED
         sal_printf("  i - ip configuration \n");
 #endif
-#ifdef CFG_PRODUCT_REGISTRATION_INCLUDED        
+#ifdef CFG_PRODUCT_REGISTRATION_INCLUDED
         sal_printf("  n - Write the serial number\n"
                    "  d - Dump the mac address and serial number\n");
-#endif /* CFG_PRODUCT_REGISTRATION_INCLUDED */                   
+#endif /* CFG_PRODUCT_REGISTRATION_INCLUDED */
 #if defined(CFG_NVRAM_SUPPORT_INCLUDED) || defined(CFG_VENDOR_CONFIG_SUPPORT_INCLUDED)
         sal_printf( "  s - Set nvram variable\n"
                    "  g - Get nvram variable\n"
@@ -74,16 +75,16 @@ cli_cmd_flash(CLI_CMD_OP op) REENTRANT
 #ifndef __BOOTLOADER__
         sal_printf( "  r - Remove nvram variable\n"
                    "  c - Commit nvram variable bindings\n");
-#endif   
+#endif
 #if (defined(__LINUX__) && !defined(__SIM__)) || defined(CFG_DVT_INCLUDED)
-       sal_printf( "  E - Erase flash \n" );                
-       sal_printf( "  S - CPU spin in SRAM \n" );                
+       sal_printf( "  E - Erase flash \n" );
+       sal_printf( "  S - CPU spin in SRAM \n" );
 #endif
 #if defined(__LINUX__) && !defined(__SIM__)
-       sal_printf( "  P - Write file into flash \n" );                
+       sal_printf( "  P - Write file into flash \n" );
        sal_printf( "  R - Read flash into file\n");
-       sal_printf( "  D - Read flash into file\n");
-#endif                 
+       sal_printf( "  D - Dump flash content\n");
+#endif
 #endif /* defined(CFG_NVRAM_SUPPORT_INCLUDED) || defined(CFG_VENDOR_CONFIG_SUPPORT_INCLUDED) */
 #if defined(CFG_PERSISTENCE_SUPPORT_ENABLED) || defined(CFG_VENDOR_CONFIG_SUPPORT_INCLUDED)
 #ifdef CFG_VENDOR_CONFIG_SUPPORT_INCLUDED
@@ -115,31 +116,42 @@ cli_cmd_flash(CLI_CMD_OP op) REENTRANT
                 if (ui_get_string(name, 64, "") == UI_RET_OK) {
                      if (parse_ip(name, ip) == SYS_ERR) {
                          return;
-                     };                      
+                     };
                 }
-                sal_printf("Enter default mask (%d.%d.%d.%d):", mask[0],mask[1],mask[2],mask[3]);                
+                sal_printf("Enter default mask (%d.%d.%d.%d):", mask[0],mask[1],mask[2],mask[3]);
                 if (ui_get_string(name, 64, "") == UI_RET_OK) {
                     if (parse_ip(name, mask) == SYS_ERR) {
                         return;
-                    };                      
+                    };
                 }
 
-                sal_printf("Enter default gateway (%d.%d.%d.%d):", gateway[0], gateway[1], gateway[2], gateway[3]);                
+                sal_printf("Enter default gateway (%d.%d.%d.%d):", gateway[0], gateway[1], gateway[2], gateway[3]);
                 if (ui_get_string(name, 64, "") == UI_RET_OK) {
                     if (parse_ip(name, gateway) == SYS_ERR) {
                         return;
-                    };                      
-                }            
+                    };
+                }
                 set_network_interface_config(INET_CONFIG_STATIC, ip, mask, gateway);
             }else {
+#ifndef CFG_DHCPC_INCLUDED
+                sal_memset(ip, 0, sizeof(ip));
+                sal_memset(mask, 0, sizeof(mask));
+                sal_memset(gateway, 0, sizeof(gateway));
+                set_network_interface_config(
+                            INET_CONFIG_DHCP_FALLBACK,
+                            ip,
+                            mask,
+                            gateway);
+#else
                 set_network_interface_config(INET_CONFIG_DHCP_FALLBACK, NULL, NULL, NULL);
+#endif
             }
-            
+
 #if CFG_PERSISTENCE_SUPPORT_ENABLED
-          persistence_save_current_settings("ethconfig");                
+          persistence_save_current_settings("ethconfig");
 #endif
         }
-#endif       
+#endif
         if (c == 'f') {
             if (ui_get_string(name, 64, "Mac: ") == UI_RET_OK) {
 #ifdef CFG_FACTORY_CONFIG_INCLUDED
@@ -162,7 +174,7 @@ cli_cmd_flash(CLI_CMD_OP op) REENTRANT
         if (c == 'd') {
             get_system_mac((uint8 *)name);
             sal_printf("MAC address : %02bx-%02bx-%02bx-%02bx-%02bx-%02bx\n",
-                name[0], name[1], name[2], name[3], 
+                name[0], name[1], name[2], name[3],
                 name[4], name[5]);
             get_serial_num(&valid, serial_num);
             if (valid) {
@@ -171,8 +183,8 @@ cli_cmd_flash(CLI_CMD_OP op) REENTRANT
                 sal_printf("Invalid serial number.\n");
             }
         }
-#endif /* CFG_PRODUCT_REGISTRATION_INCLUDED */    
-        
+#endif /* CFG_PRODUCT_REGISTRATION_INCLUDED */
+
 #if defined(CFG_NVRAM_SUPPORT_INCLUDED) || defined(CFG_VENDOR_CONFIG_SUPPORT_INCLUDED)
         if (c == 'g') {
             if (ui_get_string(name, 64, "Name: ") == UI_RET_OK) {
@@ -207,40 +219,40 @@ cli_cmd_flash(CLI_CMD_OP op) REENTRANT
             }
 #endif
 #if defined(__LINUX__) && !defined(__SIM__)
-        } else if (c == 'P') { 
+        } else if (c == 'P') {
            uint32 off;
            if (ui_get_string(name, 64, "Binary image file name: ") != UI_RET_OK) {
                return;
-		   } 
+		   }
 		   if (ui_get_dword(&off, "Flash offset:") != UI_RET_OK) {
-               return;               
+               return;
            }
 		   flash_file_write(name, off);
-		   
+
         } else if (c == 'R') {
            uint32 off;
            uint32 len;
            if (ui_get_string(name, 64, "Binary image file name: ") != UI_RET_OK) {
                return;
-		   } 
+		   }
 		   if (ui_get_dword(&off, "Flash offset:") != UI_RET_OK) {
-               return;               
+               return;
            }
 		   if (ui_get_dword(&len, "Length:") != UI_RET_OK) {
-               return;               
+               return;
            }
 
-		   flash_file_read(name, off, len);		   
+		   flash_file_read(name, off, len);
         } else if (c == 'D') {
              uint32 off, len;
              if (ui_get_dword(&off, "Flash offset:") != UI_RET_OK) {
-              		return; 			  
+              		return;
              }
 			 if (ui_get_dword(&len, "Flash Length:") != UI_RET_OK) {
-			   	 return; 			  
-			 }			 
-			 flash_dump(off, len); 
-#endif    
+			   	 return;
+			 }
+			 flash_dump(off, len);
+#endif
 #if (defined(__LINUX__) && !defined(__SIM__)) || defined(CFG_DVT_INCLUDED)
 
         } else if (c == 'S') {
@@ -249,12 +261,12 @@ cli_cmd_flash(CLI_CMD_OP op) REENTRANT
 
             uint32 off, len;
             if (ui_get_dword(&off, "Flash offset:") != UI_RET_OK) {
-          	   return;				 
+          	   return;
             }
             if (ui_get_dword(&len, "Flash Length:") != UI_RET_OK) {
-             	return; 			 
+             	return;
             }
-            flash_erase(off + CFG_FLASH_START_ADDRESS, len); 
+            flash_erase(off + CFG_FLASH_START_ADDRESS, len);
 #endif
 		}
 
@@ -283,7 +295,7 @@ cli_cmd_flash(CLI_CMD_OP op) REENTRANT
                         flash_erase(NVRAM_BASE, NVRAM_SPACE);
                         /* Erase persisten section */
                         flash_erase(MEDIUM_FLASH_START_ADDRESS, MEDIUM_FLASH_SIZE);
-                    } 
+                    }
                 }
 #else
                 /* Erase persisten section */

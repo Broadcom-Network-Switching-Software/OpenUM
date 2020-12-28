@@ -1,4 +1,5 @@
 /*
+ * $Id: rx.c,v 1.5 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -86,23 +87,23 @@ APIFUNC(sys_rx_register)(
             prev->next = cbk;
         }
     }
-    
+
     rx_cbk_count++;
     if (rx_cbk_count == 1) {
         sys_pkt_t *pkt;
         while(rx_pkt_pool != NULL) {
             pkt = rx_pkt_pool;
             rx_pkt_pool = rx_pkt_pool->next;
-            if (board_rx_fill_buffer(pkt) != SYS_OK) {
+            if (sys_rx_refill(pkt) != SYS_OK) {
                 SAL_ASSERT(FALSE);
                 sal_free(pkt);
             }
         }
     }
-    
+
     return SYS_OK;
 }
-    
+
 sys_error_t
 APIFUNC(sys_rx_unregister)(SYS_RX_CBK_FUNC callback) REENTRANT
 {
@@ -121,21 +122,23 @@ APIFUNC(sys_rx_unregister)(SYS_RX_CBK_FUNC callback) REENTRANT
         }
         prev = cur;
         cur = cur->next;
-    }    
-    
+    }
+
     return SYS_ERR_PARAMETER;
 }
 
 APISTATIC sys_error_t
 APIFUNC(sys_rx_refill)(sys_pkt_t *pkt) REENTRANT
 {
+    pkt->pkt_data = pkt->alloc_ptr;
+
     if (rx_cbk_count > 0) {
         return board_rx_fill_buffer(pkt);
     } else {
         pkt->next = rx_pkt_pool;
         rx_pkt_pool = pkt;
     }
-    
+
     return SYS_OK;
 }
 
@@ -145,7 +148,7 @@ APIFUNC(sys_rx_handler)(sys_pkt_t *pkt) REENTRANT
     rx_cbk_t *cur = rx_cbk_list;
     uint16 flags;
     sys_rx_t r;
-    
+
     SAL_ASSERT(pkt != NULL);
     
     flags = pkt->flags;
@@ -169,11 +172,11 @@ APIFUNC(sys_rx_handler)(sys_pkt_t *pkt) REENTRANT
         }
 
         r = (*cur->cbk)(pkt, cur->cookie);
-        
+
         switch(r) {
 
         case SYS_RX_HANDLED:
-            board_rx_fill_buffer(pkt);
+            sys_rx_refill(pkt);
             return;
 
         case SYS_RX_HANDLED_AND_OWNED:
@@ -188,8 +191,8 @@ APIFUNC(sys_rx_handler)(sys_pkt_t *pkt) REENTRANT
             cur = cur->next;
             continue;
         }
-    }    
-    
+    }
+
     /* If no one handles it */
     sys_rx_refill(pkt);
 }
@@ -200,7 +203,7 @@ APIFUNC(sys_rx_free_packet)(sys_pkt_t *pkt) REENTRANT
     if (pkt == NULL) {
         return;
     }
-    
+
     sys_rx_refill(pkt);
 }
 
@@ -209,18 +212,19 @@ APIFUNC(sys_rx_add_buffer)(uint8 *buffer, uint16 size) REENTRANT
 {
     sys_pkt_t *pkt;
     sys_error_t r;
-    
+
     SAL_ASSERT(buffer != NULL && size != 0);
     if (buffer == NULL || size == 0) {
         return;
     }
-    
+
     pkt = (sys_pkt_t *)sal_malloc(sizeof(sys_pkt_t));
     SAL_ASSERT(pkt != NULL);
     if (pkt == NULL) {
         return;
     }
     pkt->pkt_data = buffer;
+    pkt->alloc_ptr = buffer;
     pkt->buf_len = size;
 
     r = sys_rx_refill(pkt);

@@ -1,5 +1,5 @@
 /*
- * 
+ * $Id: types.h,v 1.10 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -29,6 +29,7 @@ typedef uint8               BOOL;
 #define _SIZE_T
 typedef unsigned int size_t;
 #endif
+typedef enum { false = 0, true = 1 } bool;
 
 /**
  * 8 bit datatype
@@ -62,7 +63,7 @@ typedef uint32 u32_t;
 typedef uint32 uint32_t;
 
 typedef int int32_t;
-
+typedef uint64 uint64_t;
 #ifdef PTRS_ARE_64BITS
 #define PTR_TO_INT(x)           ((uint32)(((uint64)(x))&0xFFFFFFFF))
 #define PTR_HI_TO_INT(x)        ((uint32)((((uint64)(x))>>32)&0xFFFFFFFF))
@@ -81,5 +82,13 @@ typedef int int32_t;
 
 #define min(a,b) ((a) < (b)? (a) : (b))
 #define max(a,b) ((a) > (b)? (a) : (b))
+
+#ifndef COUNTOF
+#define COUNTOF(ary) ((int) (sizeof(ary) / sizeof((ary)[0])))
+#endif
+
+#ifndef COMPILER_REFERENCE
+#define COMPILER_REFERENCE(_a) ((void)(_a))
+#endif
 
 #endif /* _TYPES_H_ */

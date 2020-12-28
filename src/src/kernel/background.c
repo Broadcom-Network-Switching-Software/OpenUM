@@ -1,4 +1,5 @@
 /*
+ * $Id: background.c,v 1.6 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -90,9 +91,9 @@ APIFUNC(task_add)(BACKGROUND_TASK_FUNC func, void *arg) REENTRANT
 /*  *********************************************************************
     *  task_suspend(func)
     *
-    *  Put task into suspend state 
+    *  Put task into suspend state
     *
-    *  
+    *
     *      func - function pointer
     *
     *  Return value:
@@ -118,7 +119,7 @@ APIFUNC(task_suspend)(BACKGROUND_TASK_FUNC func) REENTRANT
 /*  *********************************************************************
     *  task_resume(func)
     *
-    *  To resume task 
+    *  To resume task
     *
     *  Input parameters:
     *      func - function pointer
@@ -211,6 +212,14 @@ APIFUNC(background)(void) REENTRANT
         if (bg_task_flag[idx] & TASK_FLAG_SUSPEND) {
             continue;
         }
+
+        /* Do polling irq. */
+        POLLED_IRQ();
+
         (*func)(bg_args[idx]);
     }
+
+    /* Do polling irq before enter CLI. */
+    POLLED_IRQ();
+
 }

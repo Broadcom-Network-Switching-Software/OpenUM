@@ -1,5 +1,5 @@
 /*
- * 
+ * $Id: error.h,v 1.4 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -21,7 +21,8 @@ typedef enum {
     SYS_ERR_OUT_OF_RESOURCE         =    -8,
     SYS_ERR_NOT_IMPLEMENTED         =    -9,
     SYS_ERR_EXISTS                  =    -10,
-    SYS_ERR_NOT_FOUND               =    -11
+    SYS_ERR_NOT_FOUND               =    -11,
+    SYS_ERR_UNAVAIL                 =    -12
 } sys_error_t;
 
 #endif /* _ERROR_H_ */

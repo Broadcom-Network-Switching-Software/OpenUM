@@ -1,5 +1,5 @@
 /*
- * 
+ * $Id: sal.h,v 1.32 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -68,6 +68,9 @@ extern void sal_sleep(tick_t ticks) REENTRANT;
 /* Timer - Adjust timer with system clock change (init = FALSE) */
 extern void sal_timer_init(uint32 clk_hz, BOOL init) REENTRANT;
 
+/* Timer - Get current microseconds */
+extern uint32 sal_time_usecs(void);
+
 /* Console - printf */
 extern void sal_printf(const char *fmt, ...);
 
@@ -87,18 +90,39 @@ extern char sal_putchar(char c) REENTRANT;
 extern uint16 sal_checksum(uint16 sum, const void *start, uint16 len);
 
 /* string lib related */
+#include <string.h>
 extern char sal_toupper(char c);
-#define toupper     sal_toupper
+extern char sal_tolower(char c);
 extern int sal_stricmp(const char *s1, const char *s2);
 extern int sal_strncmp(const char *dest, const char *src, size_t cnt);
+extern int sal_strcasecmp(const char *s1, const char *s2);
+extern int sal_strncasecmp(const char *dest, const char *src, size_t cnt);
 extern size_t sal_strcspn(const char *s1, const char *s2);
 extern char *sal_strstr(const char *s1, const char *s2);
 
 #define isdigit(d)      (((d) >= '0') && ((d) <= '9'))
+#define isupper(c)      (((c) >= 'A') && ((c) <= 'Z'))
+#define islower(c)      (((c) >= 'a') && ((c) <= 'z'))
+#define isalpha(c)      ( (isupper(c)) || (islower(c)) )
 #define isxdigit(c)      ((((c) >= '0') && ((c) <= '9')) || \
                             (((c) >= 'a') && ((c) <= 'f')) || \
                             (((c) >= 'A') && ((c) <= 'F')))
 #define isspace(x)      (((x) == ' ') || ((x) == '\t'))
+#define isalnum(c)      ( (isdigit(c)) || (isalpha(c)) )
+
+#define sal_isspace(_c_) isspace(_c_)
+#define sal_isalnum(_c_) isalnum(_c_)
+#define sal_isupper(_c_) isupper(_c_)
+#define sal_islower(_c_) islower(_c_)
+#define sal_isalpha(_c_) isalpha(_c_)
+#define sal_isdigit(_c_) isdigit(_c_)
+#define sal_isxdigit(_c_) isxdigit(_c_)
+
+#define sal_strcasecmp strcasecmp
+#define sal_strncasecmp strncasecmp
+
+extern void
+sal_qsort(void *base, int count, int size, int (*compar)(const void *, const void *));
 
 /* C library */
 #ifdef __C51__
@@ -202,26 +226,36 @@ extern int sprintf(char *buf,const char *templat,...);
 extern int printf(const char *templat,...);
 
 extern int sal_atoi(const char *dest);
+int sal_ctoi(const char *s, char **end);
 extern int sal_xtoi(const char *dest);
 extern char *sal_strcpy(char *dest,const char *src);
 extern char *sal_strncpy(char *dest,const char *src,size_t cnt);
+extern size_t sal_strlcpy(char *dst, const char *src, size_t size);
 extern char *sal_strcat(char *dest,const char *src);
 extern size_t sal_strlen(const char *str);
 extern char * sal_strnchr(const char *dest,int c,size_t cnt);
 extern int sal_snprintf(char *buf, size_t bufsize, const char *fmt, ...);
 extern int sal_sprintf(char *buf,const char *templat,...);
-
+extern int sal_vsnprintf(char *buf, size_t bufsize, const char *fmt, va_list ap);
+extern char *sal_strdup(const char *s);
 extern int sal_strcmp(const char *dest,const char *src);
 extern char *sal_strchr(const char *dest,int c);
 extern char *sal_strrchr(const char *dest,int c);
 extern int32 sal_strtol(const char *nptr, char **endptr, int base);
 extern uint32 sal_strtoul(const char *nptr, const char **endptr, int base);
+extern uint64 sal_strtoull(const char *nptr, const char **endptr, int base);
 extern int sal_memcmp(const void *dest,const void *src,size_t cnt);
 extern void *sal_memcpy(void *dest,const void *src,size_t cnt);
 extern void *sal_memset(void *dest,int c,size_t cnt);
 extern void *sal_memmove(void *dst, const void *src, size_t n);
 extern char *sal_strchr(const char *dest,int c);
 extern size_t sal_strlen(const char *str);
+extern char *sal_strtok_r(char *s1, const char *delim, char **s2);
+
+#define SAL_PRIx32 "x"
+#define SAL_PRIu32 "u"
+#define SAL_PRIx64 "llx"
+#define SAL_PRIu64 "llu"
 
 
 /* Random number generator (0 ~ 32767 to be uniform for all platforms) */
@@ -233,22 +267,22 @@ extern uint16 sal_rand(void);
 #define SAL_UPORT_BASE 1
 #define SAL_ZUPORT_TO_UPORT(zuport) ((zuport) + SAL_UPORT_BASE)
 #define SAL_UPORT_TO_ZUPORT(zuport) ((zuport) - SAL_UPORT_BASE)
-#define SAL_UPORT_TO_NZUPORT(uport) ((uport) + 1 - SAL_UPORT_BASE)              
+#define SAL_UPORT_TO_NZUPORT(uport) ((uport) + 1 - SAL_UPORT_BASE)
 #define SAL_NZUPORT_TO_UPORT(nzuport) ((nzuport) + SAL_UPORT_BASE - 1)
 
 
 /* User port iteration */
 #define SAL_UPORT_ITER(_p)        \
-        for ((_p) = SAL_UPORT_BASE; (_p) < (board_uport_count() + SAL_UPORT_BASE); (_p)++) 
+        for ((_p) = SAL_UPORT_BASE; (_p) < (board_uport_count() + SAL_UPORT_BASE); (_p)++)
 
 /* User port sanity check */
 #define SAL_UPORT_IS_NOT_VALID(_p)  \
-        (((_p) < SAL_UPORT_BASE) || ((_p) >= (board_uport_count() + SAL_UPORT_BASE))) 
+        (((_p) < SAL_UPORT_BASE) || ((_p) >= (board_uport_count() + SAL_UPORT_BASE)))
 
 
 #define SAL_IS_UMDUMB()   \
         (sal_strcmp(target, "umdumb")==0)
-        
+
 #define SAL_IS_UMPLUS()   \
         (sal_strcmp(target, "umplus")==0)
 

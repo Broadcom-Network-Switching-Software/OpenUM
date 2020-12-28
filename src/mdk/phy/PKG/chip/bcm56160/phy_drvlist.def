@@ -1,3 +1,0 @@
-#define BCM56160_DRV_INSTALLED
-extern phy_driver_t bcm56160_drv;
-

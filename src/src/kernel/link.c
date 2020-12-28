@@ -1,4 +1,5 @@
 /*
+ * $Id: link.c,v 1.10 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -70,7 +71,7 @@ APIFUNC(sys_linkchange_timer)(void *arg) REENTRANT
     UNREFERENCED_PARAMETER(arg);
     
     SAL_UPORT_ITER(uport) {
-        if (board_get_port_link_status(uport, &link) != SYS_OK) {
+        if (board_port_link_status_get(uport, &link) != SYS_OK) {
             SAL_ASSERT(FALSE);
             continue;
         }

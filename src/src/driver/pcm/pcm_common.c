@@ -1,3 +1,10 @@
+/*! \file pcm_common.c
+ */
+/*
+ * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
+ * 
+ * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ */
 
 #ifdef __C51__
 #ifdef CODE_USERCLASS
@@ -9,10 +16,6 @@
 #include "utils/ports.h"
 #include "appl/persistence.h"
 #include <pcm/pcm_int.h>
-
-
-
-
 
 /*
  * Port Function Vector Driver
@@ -26,7 +29,6 @@
  *      for that device.  Use the PORT macro to access it.
  */
 pcm_port_ctrl_t pcm_port_ctrl[SOC_MAX_NUM_PORTS];
-
 
 /*
  * Function:
@@ -44,11 +46,9 @@ pcm_port_ctrl_t pcm_port_ctrl[SOC_MAX_NUM_PORTS];
  *      at startup by a compile-time application policy flag in your Make.local
  *      PTABLE initialized.
  */
-
-
 int
-pcm_software_init(int unit) {
-
+pcm_software_init(int unit)
+{
     int lport;
 
 #if CONFIG_EMULATION
@@ -60,11 +60,9 @@ pcm_software_init(int unit) {
     }
 
     pcm_phyctrl.software_init(unit);
-      
-    return SYS_OK;   
-    
-}
 
+    return SYS_OK;
+}
 
 /*
  * Function:
@@ -87,10 +85,9 @@ pcm_software_init(int unit) {
  */
 
 int
-pcm_port_probe_init(int unit, pbmp_t lpbmp, pbmp_t *okay_lpbmp) {
-
-	return  pcm_phyctrl.port_probe_init(unit, lpbmp, okay_lpbmp);
-
+pcm_port_probe_init(int unit, pbmp_t lpbmp, pbmp_t *okay_lpbmp)
+{
+    return  pcm_phyctrl.port_probe_init(unit, lpbmp, okay_lpbmp);
 }
 
 
@@ -110,18 +107,17 @@ pcm_port_probe_init(int unit, pbmp_t lpbmp, pbmp_t *okay_lpbmp) {
  *      SYS_OK
  *      SYS_ERR_XXX
  */
-
 int
-pcm_port_loopback_set(int unit, int lport, int loopback) {
-    
-  int rv = SYS_ERR_NOT_IMPLEMENTED;
+pcm_port_loopback_set(int unit, int lport, int loopback)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-  if (pcm_port_ctrl[lport].f && 
-      pcm_port_ctrl[lport].f->port_loopback_set) {
-      rv = pcm_port_ctrl[lport].f->port_loopback_set(unit, lport, loopback);
-  } 
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_loopback_set) {
+        rv = pcm_port_ctrl[lport].f->port_loopback_set(unit, lport, loopback);
+    }
 
-  return rv;
+    return rv;
 }
 
 /*
@@ -140,20 +136,18 @@ pcm_port_loopback_set(int unit, int lport, int loopback) {
  *      SYS_OK
  *      SYS_ERR_XXX
  */
-
 int
-pcm_port_loopback_get(int unit, int lport, int *loopback) {
-    
-  int rv = SYS_ERR_NOT_IMPLEMENTED;
+pcm_port_loopback_get(int unit, int lport, int *loopback)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-  if (pcm_port_ctrl[lport].f && 
-      pcm_port_ctrl[lport].f->port_loopback_get) {
-      rv = pcm_port_ctrl[lport].f->port_loopback_get(unit, lport, loopback);
-  } 
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_loopback_get) {
+        rv = pcm_port_ctrl[lport].f->port_loopback_get(unit, lport, loopback);
+    }
 
-  return rv;
+    return rv;
 }
-
 
 /*
  * Function:
@@ -169,18 +163,17 @@ pcm_port_loopback_get(int unit, int lport, int *loopback) {
  *      SYS_OK
  *      SYS_ERR_XXX - Functionality not available
  */
-
 int
-pcm_port_control_get(int unit, int lport, int type, int *value) {
+pcm_port_control_get(int unit, int lport, int type, int *value)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-  int rv = SYS_ERR_NOT_IMPLEMENTED;
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_control_get) {
+        rv = pcm_port_ctrl[lport].f->port_control_get(unit, lport, type, value);
+    }
 
-  if (pcm_port_ctrl[lport].f && 
-      pcm_port_ctrl[lport].f->port_control_get) {
-      rv = pcm_port_ctrl[lport].f->port_control_get(unit, lport, type, value);
-  } 
-
-  return rv;
+    return rv;
 }
 
 /*
@@ -198,16 +191,16 @@ pcm_port_control_get(int unit, int lport, int type, int *value) {
  *      SYS_ERR_XXX - Functionality not available
  */
 int
-pcm_port_control_set(int unit, int lport, int type, int value) {
+pcm_port_control_set(int unit, int lport, int type, int value)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-  int rv = SYS_ERR_NOT_IMPLEMENTED;
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_control_set) {
+        rv = pcm_port_ctrl[lport].f->port_control_set(unit, lport, type,value);
+    }
 
-  if (pcm_port_ctrl[lport].f && 
-      pcm_port_ctrl[lport].f->port_control_set) {
-      rv = pcm_port_ctrl[lport].f->port_control_set(unit, lport, type,value);
-  } 
-
-  return rv;
+    return rv;
 }
 
 /*
@@ -226,15 +219,14 @@ pcm_port_control_set(int unit, int lport, int type, int value) {
  *      Turns off autonegotiation.  Caller must make sure other forced
  *      parameters (such as duplex) are set.
  */
-
 int
-pcm_port_speed_set(int unit, int lport, int speed) {
+pcm_port_speed_set(int unit, int lport, int speed)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-	int rv = SYS_ERR_NOT_IMPLEMENTED;
-
-	if (pcm_port_ctrl[lport].f && 
-		pcm_port_ctrl[lport].f->port_speed_set) {
-		rv = pcm_port_ctrl[lport].f->port_speed_set(unit, lport, speed);
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_speed_set) {
+        rv = pcm_port_ctrl[lport].f->port_speed_set(unit, lport, speed);
     }
 
     return rv;
@@ -256,21 +248,18 @@ pcm_port_speed_set(int unit, int lport, int speed) {
  *      Turns off autonegotiation.  Caller must make sure other forced
  *      parameters (such as duplex) are set.
  */
-
 int
-pcm_port_speed_get(int unit, int lport, int *speed) {
+pcm_port_speed_get(int unit, int lport, int *speed)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-	int rv = SYS_ERR_NOT_IMPLEMENTED;
-
-	if (pcm_port_ctrl[lport].f && 
-		pcm_port_ctrl[lport].f->port_speed_get) {
-		rv = pcm_port_ctrl[lport].f->port_speed_get(unit, lport, speed);
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_speed_get) {
+        rv = pcm_port_ctrl[lport].f->port_speed_get(unit, lport, speed);
     }
- 
+
     return rv;
-
 }
-
 
 /*
  * Function:
@@ -285,18 +274,17 @@ pcm_port_speed_get(int unit, int lport, int *speed) {
  *      SYS_OK
  *      SYS_ERR_XXX - Functionality not available
  */
-
 int
-pcm_port_link_status_get(int unit, int lport, int *link) {
+pcm_port_link_status_get(int unit, int lport, int *link)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-   int rv = SYS_ERR_NOT_IMPLEMENTED;
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_link_status_get) {
+        rv = pcm_port_ctrl[lport].f->port_link_status_get(unit, lport, link);
+    }
 
-   if (pcm_port_ctrl[lport].f && 
-	   pcm_port_ctrl[lport].f->port_link_status_get) {
-	   rv = pcm_port_ctrl[lport].f->port_link_status_get(unit, lport, link);
-   }
-
-   return rv;
+    return rv;
 }
 
 /*
@@ -307,26 +295,24 @@ pcm_port_link_status_get(int unit, int lport, int *link) {
  * Parameters:
  *      unit - Switch Unit number.
  *      lport - Logical Port number
- *      autoneg - (OUT) 
- *                      Boolean value, FALSE for autoneg disabled 
+ *      autoneg - (OUT)
+ *                      Boolean value, FALSE for autoneg disabled
  *                      and TRUE for autoneg enabled
  * Returns:
  *      SYS_OK
  *      SYS_ERR_XXX - Functionality not available
  */
-
 int
-pcm_port_autoneg_get(int unit, int lport, int *autoneg) 
+pcm_port_autoneg_get(int unit, int lport, int *autoneg)
 {
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-   int rv = SYS_ERR_NOT_IMPLEMENTED;
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_autoneg_get) {
+        rv = pcm_port_ctrl[lport].f->port_autoneg_get(unit, lport, autoneg);
+    }
 
-   if (pcm_port_ctrl[lport].f && 
-	   pcm_port_ctrl[lport].f->port_autoneg_get) {
-	   rv = pcm_port_ctrl[lport].f->port_autoneg_get(unit, lport, autoneg);
-   }
-
-   return rv;
+    return rv;
 }
 
 /*
@@ -342,22 +328,18 @@ pcm_port_autoneg_get(int unit, int lport, int *autoneg)
  *      SYS_OK
  *      SYS_ERR_XXX - Functionality not available
  */
-
 int
-pcm_port_autoneg_set(int unit, int lport, int autoneg) 
+pcm_port_autoneg_set(int unit, int lport, int autoneg)
 {
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-	int rv = SYS_ERR_NOT_IMPLEMENTED;
-	
-	if (pcm_port_ctrl[lport].f && 
-		pcm_port_ctrl[lport].f->port_autoneg_set) {
-		rv = pcm_port_ctrl[lport].f->port_autoneg_set(unit, lport, autoneg);
-	}
-	
-	return rv;
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_autoneg_set) {
+        rv = pcm_port_ctrl[lport].f->port_autoneg_set(unit, lport, autoneg);
+    }
 
+    return rv;
 }
-
 
 /*
  * Function:
@@ -375,18 +357,18 @@ pcm_port_autoneg_set(int unit, int lport, int autoneg)
  * Notes:
  *      Symmetric pause requires the two "pause" values to be the same.
  */
-int 
+int
 pcm_port_pause_set(int unit, int lport, int pause_tx, int pause_rx)
 {
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-	int rv = SYS_ERR_NOT_IMPLEMENTED;
-	
-	if (pcm_port_ctrl[lport].f && 
-		pcm_port_ctrl[lport].f->port_pause_set) {
-		rv = pcm_port_ctrl[lport].f->port_pause_set(unit, lport, pause_tx, pause_rx);
-	}
-	
-	return rv;
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_pause_set) {
+        rv = pcm_port_ctrl[lport].f->port_pause_set(unit, lport,
+                                                    pause_tx, pause_rx);
+    }
+
+    return rv;
 }
 
 /*
@@ -403,20 +385,18 @@ pcm_port_pause_set(int unit, int lport, int pause_tx, int pause_rx)
  *      SYS_OK
  *      SYS_ERR_XXX - Functionality not available
  */
-
-int 
+int
 pcm_port_pause_get(int unit, int lport, int *pause_tx, int *pause_rx)
 {
-	
     int rv = SYS_ERR_NOT_IMPLEMENTED;
-	
-	if (pcm_port_ctrl[lport].f && 
-		pcm_port_ctrl[lport].f->port_pause_get) {
-		rv = pcm_port_ctrl[lport].f->port_pause_get(unit, lport, pause_tx, pause_rx);
-	}
-	
-	return rv;	
 
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_pause_get) {
+        rv = pcm_port_ctrl[lport].f->port_pause_get(unit, lport,
+                                                    pause_tx, pause_rx);
+    }
+
+    return rv;
 }
 
 /*
@@ -427,7 +407,7 @@ pcm_port_pause_get(int unit, int lport, int *pause_tx, int *pause_rx)
  * Parameters:
  *      unit - StrataSwitch Unit #.
  *      lport - Logical Port number
- *      duplex - Duplex setting, 0 means half-duplex 
+ *      duplex - Duplex setting, 0 means half-duplex
  *                   1 means full-duplex
  * Returns:
  *      SYS_OK
@@ -436,19 +416,17 @@ pcm_port_pause_get(int unit, int lport, int *pause_tx, int *pause_rx)
  *      Turns off autonegotiation.  Caller must make sure other forced
  *      parameters (such as speed) are set.
  */
-
-int 
+int
 pcm_port_duplex_set(int unit, int lport, int duplex)
 {
     int rv = SYS_ERR_NOT_IMPLEMENTED;
-	
-	if (pcm_port_ctrl[lport].f && 
-		pcm_port_ctrl[lport].f->port_duplex_set) {
-		rv = pcm_port_ctrl[lport].f->port_duplex_set(unit, lport, duplex);
-	}
 
-	return rv;
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_duplex_set) {
+        rv = pcm_port_ctrl[lport].f->port_duplex_set(unit, lport, duplex);
+    }
 
+    return rv;
 }
 
 /*
@@ -464,18 +442,17 @@ pcm_port_duplex_set(int unit, int lport, int duplex)
  *      SYS_OK
  *      SYS_ERR_XXX
  */
-
 int pcm_port_duplex_get(int unit, int lport, int *duplex)
 {
 
     int rv = SYS_ERR_NOT_IMPLEMENTED;
-	
-	if (pcm_port_ctrl[lport].f && 
-		pcm_port_ctrl[lport].f->port_duplex_get) {
-		rv = pcm_port_ctrl[lport].f->port_duplex_get(unit, lport, duplex);
-	}
 
-	return rv;
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_duplex_get) {
+        rv = pcm_port_ctrl[lport].f->port_duplex_get(unit, lport, duplex);
+    }
+
+    return rv;
 }
 
 /*
@@ -492,18 +469,17 @@ int pcm_port_duplex_get(int unit, int lport, int *duplex)
  * Notes:
  *      If linkscan is running, it also controls the MAC enable state.
  */
-
 int
-pcm_port_enable_set(int unit, int lport, int enable) {
-
+pcm_port_enable_set(int unit, int lport, int enable)
+{
     int rv = SYS_ERR_NOT_IMPLEMENTED;
-	
-	if (pcm_port_ctrl[lport].f && 
-		pcm_port_ctrl[lport].f->port_enable_set) {
-		rv = pcm_port_ctrl[lport].f->port_enable_set(unit, lport, enable);
-	}
 
-	return rv;
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_enable_set) {
+        rv = pcm_port_ctrl[lport].f->port_enable_set(unit, lport, enable);
+    }
+
+    return rv;
 }
 
 /*
@@ -522,18 +498,17 @@ pcm_port_enable_set(int unit, int lport, int enable) {
  *      The MAC enable transitions up and down automatically via linkscan
  *      even if user port enable is always up.
  */
-
 int
 pcm_port_enable_get(int unit, int lport, int *enable)
 {
     int rv = SYS_ERR_NOT_IMPLEMENTED;
-	
-	if (pcm_port_ctrl[lport].f && 
-		pcm_port_ctrl[lport].f->port_enable_get) {
-		rv = pcm_port_ctrl[lport].f->port_enable_get(unit, lport, enable);
-	}
 
-	return rv;
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_enable_get) {
+        rv = pcm_port_ctrl[lport].f->port_enable_get(unit, lport, enable);
+    }
+
+    return rv;
 }
 
 /*
@@ -552,19 +527,17 @@ pcm_port_enable_get(int unit, int lport, int *enable)
  *      This call MAY NOT restart autonegotiation (depending on the phy).
  *      To do that, follow this call with pcm_port_autoneg_set(TRUE).
  */
-
-int 
-pcm_port_ability_advert_set(int unit, int lport, pcm_port_ability_t *adv) 
+int
+pcm_port_ability_advert_set(int unit, int lport, pcm_port_ability_t *adv)
 {
     int rv = SYS_ERR_NOT_IMPLEMENTED;
-	
-	if (pcm_port_ctrl[lport].f && 
-		pcm_port_ctrl[lport].f->port_ability_advert_set) {
-		rv = pcm_port_ctrl[lport].f->port_ability_advert_set(unit, lport, adv);
-	}
 
-	return rv;
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_ability_advert_set) {
+        rv = pcm_port_ctrl[lport].f->port_ability_advert_set(unit, lport, adv);
+    }
 
+    return rv;
 }
 
 /*
@@ -581,19 +554,18 @@ pcm_port_ability_advert_set(int unit, int lport, pcm_port_ability_t *adv)
  *      SYS_OK
  *      SYS_ERR_XXX
  */
-
-int 
-pcm_port_ability_get(int unit, int lport, pcm_port_ability_t *ability) {
-
+int
+pcm_port_ability_get(int unit, int lport, pcm_port_ability_t *ability)
+{
    int rv = SYS_ERR_NOT_IMPLEMENTED;
-   
-   if (pcm_port_ctrl[lport].f && 
-	   pcm_port_ctrl[lport].f->port_ability_local_get) {
-	   rv = pcm_port_ctrl[lport].f->port_ability_local_get(unit, lport, ability);
-   }
-   
-   return rv;
 
+   if (pcm_port_ctrl[lport].f &&
+       pcm_port_ctrl[lport].f->port_ability_local_get) {
+       rv = pcm_port_ctrl[lport].f->port_ability_local_get(unit, lport,
+                                                           ability);
+   }
+
+   return rv;
 }
 
 /*
@@ -609,20 +581,18 @@ pcm_port_ability_get(int unit, int lport, pcm_port_ability_t *ability) {
  *      SYS_OK
  *      SYS_ERR_XXX
  */
-
-
-int 
-pcm_port_ability_remote_get(int unit, int lport, pcm_port_ability_t *ability) {
-
+int
+pcm_port_ability_remote_get(int unit, int lport, pcm_port_ability_t *ability)
+{
    int rv = SYS_ERR_NOT_IMPLEMENTED;
-   
-   if (pcm_port_ctrl[lport].f && 
-	   pcm_port_ctrl[lport].f->port_ability_remote_get) {
-	   rv = pcm_port_ctrl[lport].f->port_ability_remote_get(unit, lport, ability);
-   }
-   
-   return rv;
 
+   if (pcm_port_ctrl[lport].f &&
+       pcm_port_ctrl[lport].f->port_ability_remote_get) {
+       rv = pcm_port_ctrl[lport].f->port_ability_remote_get(unit, lport,
+                                                            ability);
+   }
+
+   return rv;
 }
 
 /*
@@ -641,19 +611,17 @@ pcm_port_ability_remote_get(int unit, int lport, pcm_port_ability_t *ability) {
  *      Cable diagnostics are only supported by some phy types
  *      (currently 5248 10/100 phy and 546x 10/100/1000 phys)
  */
+int
+pcm_port_cable_diag(int unit, int lport, pcm_port_cable_diag_t *status)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-int 
-pcm_port_cable_diag(int unit, int lport, pcm_port_cable_diag_t *status) {
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->phy_cable_diag) {
+        rv = pcm_port_ctrl[lport].f->phy_cable_diag(unit, lport, status);
+    }
 
-	int rv = SYS_ERR_NOT_IMPLEMENTED;
-	
-	if (pcm_port_ctrl[lport].f && 
-		pcm_port_ctrl[lport].f->phy_cable_diag) {
-		rv = pcm_port_ctrl[lport].f->phy_cable_diag(unit, lport, status);
-	}
-	
-	return rv;
-
+    return rv;
 }
 
 /*
@@ -664,7 +632,7 @@ pcm_port_cable_diag(int unit, int lport, pcm_port_cable_diag_t *status) {
  * Parameters:
  *      unit - Device number
  *      lport - Logical Port number
- *      support - (OUT) capbility of cable diag 
+ *      support - (OUT) capbility of cable diag
  * Return Value:
  *      SYS_OK
  *      SYS_ERR_XXX
@@ -672,26 +640,25 @@ pcm_port_cable_diag(int unit, int lport, pcm_port_cable_diag_t *status) {
  *      Cable diagnostics are only supported by some phy types
  *      (currently 5248 10/100 phy and 546x 10/100/1000 phys)
  */
+int
+pcm_port_cable_diag_support(int unit, int lport, int *support)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-int 
-pcm_port_cable_diag_support(int unit, int lport, int *support) {
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->phy_cable_diag_support) {
+        rv = pcm_port_ctrl[lport].f->phy_cable_diag_support(unit, lport,
+                                                            support);
+    }
 
-	int rv = SYS_ERR_NOT_IMPLEMENTED;
-	
-	if (pcm_port_ctrl[lport].f && 
-		pcm_port_ctrl[lport].f->phy_cable_diag_support) {
-		rv = pcm_port_ctrl[lport].f->phy_cable_diag_support(unit, lport, support);
-	}
-	
-	return rv;
-    
+    return rv;
 }
 
 /*
  * Function:
  *      pcm_port_eee_enable_set
  * Description:
- *      Enable EEE on port 
+ *      Enable EEE on port
  * Parameters:
  *      unit - Device number
  *      lport - Logical Port number
@@ -704,19 +671,18 @@ pcm_port_cable_diag_support(int unit, int lport, int *support) {
  *      Cable diagnostics are only supported by some phy types
  *      (currently 5248 10/100 phy and 546x 10/100/1000 phys)
  */
+int
+pcm_port_eee_enable_set(int unit, int lport, int enable, int *mode)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-int 
-pcm_port_eee_enable_set(int unit, int lport, int enable, int *mode) {
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_eee_enable_set) {
+        rv = pcm_port_ctrl[lport].f->port_eee_enable_set(unit, lport, enable,
+                                                         mode);
+    }
 
-	int rv = SYS_ERR_NOT_IMPLEMENTED;
-	
-	if (pcm_port_ctrl[lport].f && 
-		pcm_port_ctrl[lport].f->port_eee_enable_set) {
-		rv = pcm_port_ctrl[lport].f->port_eee_enable_set(unit, lport, enable, mode);
-	}
-	
-	return rv;
-
+    return rv;
 }
 
 /*
@@ -733,18 +699,17 @@ pcm_port_eee_enable_set(int unit, int lport, int enable, int *mode) {
  *      SYS_OK
  *      SYS_ERR_XXX
  */
+int
+pcm_port_update(int unit, int lport, int link)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-int 
-pcm_port_update(int unit, int lport, int link) {
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_update) {
+        rv = pcm_port_ctrl[lport].f->port_update(unit, lport, link);
+    }
 
-	 int rv = SYS_ERR_NOT_IMPLEMENTED;
-	 
-	 if (pcm_port_ctrl[lport].f && 
-		 pcm_port_ctrl[lport].f->port_update) {
-		 rv = pcm_port_ctrl[lport].f->port_update(unit, lport, link);
-	 }
-	 
-	 return rv;
+    return rv;
 }
 
 /*
@@ -762,19 +727,17 @@ pcm_port_update(int unit, int lport, int link) {
  * Notes:
  *      WARNING: assumes _SHR_PORT_IF_* matches SOC_PORT_IF_*
  */
+int
+pcm_port_interface_set(int unit, int lport,  pcm_port_if_t intf)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-int 
-pcm_port_interface_set(int unit, int lport,  pcm_port_if_t intf) {
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_interface_set) {
+        rv = pcm_port_ctrl[lport].f->port_interface_set(unit, lport, intf);
+    }
 
-  int rv = SYS_ERR_NOT_IMPLEMENTED;
-  
-  if (pcm_port_ctrl[lport].f && 
-	  pcm_port_ctrl[lport].f->port_interface_set) {
-	  rv = pcm_port_ctrl[lport].f->port_interface_set(unit, lport, intf);
-  }
-  
-  return rv;
-
+    return rv;
 }
 
 /*
@@ -792,18 +755,17 @@ pcm_port_interface_set(int unit, int lport,  pcm_port_if_t intf) {
  * Notes:
  *      WARNING: assumes BCM_PORT_IF_* matches SOC_PORT_IF_*
  */
+int
+pcm_port_interface_get(int unit, int lport,  pcm_port_if_t *intf)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-int 
-pcm_port_interface_get(int unit, int lport,  pcm_port_if_t *intf) {
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_interface_get) {
+        rv = pcm_port_ctrl[lport].f->port_interface_get(unit, lport, intf);
+    }
 
-	int rv = SYS_ERR_NOT_IMPLEMENTED;
-	
-	if (pcm_port_ctrl[lport].f && 
-		pcm_port_ctrl[lport].f->port_interface_get) {
-		rv = pcm_port_ctrl[lport].f->port_interface_get(unit, lport, intf);
-	}
-	
-	return rv;
+    return rv;
 }
 
 /*
@@ -822,19 +784,19 @@ pcm_port_interface_get(int unit, int lport,  pcm_port_if_t *intf) {
  * Returns:
  *      SYS_ERR_XXX
  */
-
 int
-pcm_phy_reg_get(int unit, int lport, uint32 index, uint32 phy_reg_addr, uint32* phy_data) {
+pcm_phy_reg_get(int unit, int lport, uint32 index,
+                uint32 phy_reg_addr, uint32* phy_data)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-	int rv = SYS_ERR_NOT_IMPLEMENTED;
-	
-	if (pcm_port_ctrl[lport].f && 
-		pcm_port_ctrl[lport].f->phy_reg_get) {
-		rv = pcm_port_ctrl[lport].f->phy_reg_get(unit, lport, index, phy_reg_addr, phy_data);
-	}
-	
-	return rv;
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->phy_reg_get) {
+        rv = pcm_port_ctrl[lport].f->phy_reg_get(unit, lport, index,
+                                                 phy_reg_addr, phy_data);
+    }
 
+    return rv;
 }
 
 /*
@@ -851,20 +813,19 @@ pcm_phy_reg_get(int unit, int lport, uint32 index, uint32 phy_reg_addr, uint32* 
  * Returns:
  *      SYS_ERR_XXX
  */
-
 int
-pcm_phy_reg_set(int unit, int lport, uint32 flags, uint32 phy_reg_addr, uint32 phy_data) {
+pcm_phy_reg_set(int unit, int lport, uint32 flags,
+                uint32 phy_reg_addr, uint32 phy_data)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->phy_reg_set) {
+        rv = pcm_port_ctrl[lport].f->phy_reg_set(unit, lport, flags,
+                                                 phy_reg_addr, phy_data);
+    }
 
-	int rv = SYS_ERR_NOT_IMPLEMENTED;
-	
-	if (pcm_port_ctrl[lport].f && 
-		pcm_port_ctrl[lport].f->phy_reg_set) {
-		rv = pcm_port_ctrl[lport].f->phy_reg_set(unit, lport, flags, phy_reg_addr, phy_data);
-	}
-	
-	return rv;
-     
+    return rv;
 }
 
 /*
@@ -880,25 +841,24 @@ pcm_phy_reg_set(int unit, int lport, uint32 flags, uint32 phy_reg_addr, uint32 p
  * Returns:
  *      SYS_ERR_XXX
  */
-
 int
-pcm_port_notify(int unit, int lport, int event, int value) {
+pcm_port_notify(int unit, int lport, int event, int value)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-   int rv = SYS_ERR_NOT_IMPLEMENTED;
-   
-   if (pcm_port_ctrl[lport].f && 
-	   pcm_port_ctrl[lport].f->port_notify) {
-	   rv = pcm_port_ctrl[lport].f->port_notify(unit, lport, event, value);
-   }
-   
-   return rv;	
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->port_notify) {
+        rv = pcm_port_ctrl[lport].f->port_notify(unit, lport, event, value);
+    }
+
+    return rv;
 }
 
 /*
  * Function:
  *      pcm_phy_driver_name_get
  * Description:
- *      Get PHY driver name 
+ *      Get PHY driver name
  * Parameters:
  *      unit - Device number
  *      lport - Logical Port number
@@ -911,18 +871,17 @@ pcm_port_notify(int unit, int lport, int event, int value) {
  * Returns:
  *      char * driver_name or NULL
  */
-
 const char *
-pcm_phy_driver_name_get(int unit, int lport, uint32 index) {
+pcm_phy_driver_name_get(int unit, int lport, uint32 index)
+{
+    const char * ret = NULL;
 
-	 const char * ret = NULL;
-	 
-	 if (pcm_port_ctrl[lport].f && 
-		 pcm_port_ctrl[lport].f->phy_driver_name_get) {
-		 ret = pcm_port_ctrl[lport].f->phy_driver_name_get(unit, lport, index);
-	 }
-	 
-	 return ret;
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->phy_driver_name_get) {
+        ret = pcm_port_ctrl[lport].f->phy_driver_name_get(unit, lport, index);
+    }
+
+    return ret;
 }
 
 /*
@@ -938,20 +897,17 @@ pcm_phy_driver_name_get(int unit, int lport, uint32 index) {
  * Returns:
  *      SYS_OK
  */
-
-
 int
-pcm_phy_addr_get(int unit, int lport, uint32 *iaddr, uint32 *addr) {
+pcm_phy_addr_get(int unit, int lport, uint32 *iaddr, uint32 *addr)
+{
+    int rv = SYS_ERR_NOT_IMPLEMENTED;
 
-	 int rv = SYS_ERR_NOT_IMPLEMENTED;
-	 
-	 if (pcm_port_ctrl[lport].f && 
-		 pcm_port_ctrl[lport].f->phy_addr_get) {
-		 rv = pcm_port_ctrl[lport].f->phy_addr_get(unit, lport, iaddr, addr);
-	 }
-	 
-	 return rv;   
+    if (pcm_port_ctrl[lport].f &&
+        pcm_port_ctrl[lport].f->phy_addr_get) {
+        rv = pcm_port_ctrl[lport].f->phy_addr_get(unit, lport, iaddr, addr);
+    }
 
+    return rv;
 }
 
 /*
@@ -973,18 +929,14 @@ int
 pcm_port_pause_addr_get(int unit, int lport, sal_mac_addr_t mac)
 {
     int rv = SYS_ERR_NOT_IMPLEMENTED;
-    
-    if (pcm_port_ctrl[lport].f && 
+
+    if (pcm_port_ctrl[lport].f &&
         pcm_port_ctrl[lport].f->port_pause_addr_get) {
         rv = pcm_port_ctrl[lport].f->port_pause_addr_get(unit, lport, mac);
     }
-    
-    return rv; 
 
+    return rv;
 }
-
-
-
 
 /*
  * Function:
@@ -1005,16 +957,11 @@ int
 pcm_port_pause_addr_set(int unit, int lport, sal_mac_addr_t mac)
 {
     int rv = SYS_ERR_NOT_IMPLEMENTED;
-    
-    if (pcm_port_ctrl[lport].f && 
+
+    if (pcm_port_ctrl[lport].f &&
         pcm_port_ctrl[lport].f->port_pause_addr_set) {
         rv = pcm_port_ctrl[lport].f->port_pause_addr_set(unit, lport, mac);
     }
-    
-    return rv; 
 
+    return rv;
 }
-
-
-
-

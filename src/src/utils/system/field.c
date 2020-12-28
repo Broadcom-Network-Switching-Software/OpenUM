@@ -1,12 +1,20 @@
+/*! \file field.c
+ */
+/*
+ * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
+ * 
+ * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ */
+
 #include <system.h>
 
 
 #define DEBUG 1
 
-#if DEBUG 
+#if DEBUG
 #define LOCAL_DEBUG_PRINTF(args ...)  do { sal_printf("%s %d:", __FUNCTION__, __LINE__); sal_printf(args); } while(0)
 #else
-#define LOCAL_DEBUG_PRINTF(args ...)  
+#define LOCAL_DEBUG_PRINTF(args ...)
 #endif
 
 

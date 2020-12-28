@@ -1,4 +1,5 @@
 /*
+ * $Id: main.c,v 1.43 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -83,15 +84,15 @@ main(void)
 #if defined(__LINUX__)
    if (sal_bde_init()) {
    	   sal_printf("bde module init fail\n");
-   } 
+   }
 #endif
     board_early_init();
 
-    sal_init();	
+    sal_init();
 
 
     background_init();
-#if CFG_TIMER_CALLBACK_SUPPORT    
+#if CFG_TIMER_CALLBACK_SUPPORT
     sys_timer_init();
 #endif /* CFG_TIMER_CALLBACK_SUPPORT */
 
@@ -99,7 +100,7 @@ main(void)
 #if CFG_LINKCHANGE_CALLBACK_SUPPORT
     sys_linkchange_init();
 #endif /* CFG_LINKCHANGE_CALLBACK_SUPPORT */
-    
+
     system_utils_init();
 
 #if CFG_UIP_STACK_ENABLED
@@ -107,10 +108,12 @@ main(void)
 #endif /* CFG_UIP_STACK_ENABLED */
 
     if (board_init() == SYS_OK) {
+#if (CFG_RXTX_SUPPORT_ENABLED && !defined(__BOOTLOADER__))
 #if defined(__LINUX__)
      for (i=0; i<DEFAULT_RX_BUFFER_COUNT; i++) {
 	 	rx_buffers[i] = sal_dma_malloc(DEFAULT_RX_BUFFER_SIZE);
      }
+#endif
 #endif
 #if (CFG_RXTX_SUPPORT_ENABLED && !defined(__BOOTLOADER__))
         sys_tx_init();
@@ -135,15 +138,15 @@ main(void)
          */
         if (persistence_validate_current_settings()) {
 
-            /* 
+            /*
              * If all current settins are valid, just load them.
              */
             persistence_load_all_current_settings();
 
         } else {
 
-            /* 
-             * Part or all of data in current settings are not valid: 
+            /*
+             * Part or all of data in current settings are not valid:
              * use factory defaults for the invalid items.
              * First we load factory default for all items.
              */
@@ -159,7 +162,7 @@ main(void)
             persistence_load_all_current_settings();
 
             /*
-             * Loading done; save to flash (current settings) 
+             * Loading done; save to flash (current settings)
              */
             persistence_save_all_current_settings();
         }
@@ -171,8 +174,16 @@ main(void)
 #endif
 
         board_late_init();
+    } else {
+        /*
+         * FIXME:
+         *
+         * To remove this "else" block when device init is ready.
+ */
+        appl_init();
+        board_late_init();
     }
-#ifdef CFG_PCM_SUPPORT_INCLUDED        
+#ifdef CFG_PCM_SUPPORT_INCLUDED
     ui_pcm_init();
 #endif
 #if CFG_CLI_ENABLED

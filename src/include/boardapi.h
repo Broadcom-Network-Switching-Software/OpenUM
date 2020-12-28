@@ -1,5 +1,5 @@
 /*
- * 
+ * $Id: boardapi.h,v 1.42 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -20,4 +20,5 @@
 #include "boardapi/misc.h"
 #include "boardapi/lag.h"
 #include "boardapi/l2.h"
+#include "boardapi/time.h"
 #endif /* _BOARDAPI_H_ */

@@ -1,4 +1,5 @@
 /*
+ * $Id: sal_libc.c,v 1.10 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -147,6 +148,14 @@ sal_toupper(char c)
     return c;
 }
 
+char
+sal_tolower(char c)
+{
+    if ((c >= 'A') && (c <= 'Z'))
+        c += 32;
+    return c;
+}
+
 int
 sal_stricmp(const char *s1, const char *s2)
 {
@@ -227,6 +236,21 @@ char *sal_strcpy(char *dest,const char *src)
     *ptr = '\0';
 
     return dest;
+}
+
+size_t sal_strlcpy(char *dest, const char *src, size_t cnt)
+{
+    char *ptr = dest;
+    size_t copied = 0;
+
+    while (*src && (cnt > 1)) {
+        *ptr++ = *src++;
+        cnt--;
+        copied++;
+    }
+    *ptr = '\0';
+
+    return copied;
 }
 
 char *sal_strcat(char *dest,const char *src)
@@ -571,7 +595,7 @@ sal_strtoul(const char *nptr, const char **endptr, int base)
  
 	 bp = buf;
 	 be = (bufsize == X_INF) ? b_inf : &buf[bufsize - 1];
- 
+
 	 while ((c = *fmt++) != 0) {
 	 int		 width = 0, ljust = 0, plus = 0, space = 0;
 	 int	 altform = 0, prec = 0, half = 0, base = 0;
@@ -764,8 +788,8 @@ sal_strtoul(const char *nptr, const char **endptr, int base)
 	 else
 	 /*    coverity[var_deref_op : FALSE]	 */
 	 *be = 0;
-     if (bp >= be) {
-         sal_printf("out of range\n");
+     if (bp > be) {
+         sal_printf("out of range buf %s bufsize %d\n", buf, bufsize);
      }
 	 return (bp - buf);
  }
@@ -1081,3 +1105,31 @@ sal_udelay(uint32 usec) {
    sal_usleep(usec);
 }
 
+#define A(i)    ((void *) &((char *)(base))[(i) * (size)])
+
+void
+sal_qsort(void *base, int count, int size, int (*compar)(const void *, const void *))
+{
+    int         h = 1, i, j;
+    char        tmp[256];
+
+    SAL_ASSERT(size < (int)sizeof(tmp));
+
+    while (h * 3 + 1 < count) {
+        h = 3 * h + 1;
+    }
+
+    while (h > 0) {
+        for (i = h - 1; i < count; i++) {
+            sal_memcpy(tmp, A(i), size);
+
+            for (j = i; j >= h && (*compar)(A(j - h), tmp) > 0; j -= h) {
+                sal_memcpy(A(j), A(j - h), size);
+            }
+
+            sal_memcpy(A(j), tmp, size);
+        }
+
+        h /= 3;
+    }
+}

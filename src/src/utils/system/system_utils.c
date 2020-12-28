@@ -1,4 +1,5 @@
 /*
+ * $Id: system_utils.c,v 1.2 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -6,9 +7,11 @@
  */
 
 #include "system.h"
+#if CFG_UIP_STACK_ENABLED
 #include "uip.h"
-#include "utils/system.h"
 #include "appl/dhcpc.h"
+#endif
+#include "utils/system.h"
 
 #ifdef CFG_NVRAM_CONFIG_INCLUDED
 #include "utils/nvram.h"

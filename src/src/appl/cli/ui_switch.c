@@ -1,4 +1,5 @@
 /*
+ * $Id: ui_switch.c,v 1.45 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -32,6 +33,12 @@
 #ifdef CFG_XCOMMAND_INCLUDED
 #include "appl/xcmd/xcmd_public.h"
 #endif /* CFG_XCOMMAND_INCLUDED */
+
+#ifdef CFG_SDKCLI_INCLUDED
+#include "appl/sdkcli/bcma_cli.h"
+#include "appl/sdkcli/bcma_clicmd.h"
+#include "appl/editline/bcma_readline.h"
+#endif /* CFG_SDKCLI_INCLUDED */
 
 uint8 board_linkscan_disable = 0;
 
@@ -133,6 +140,10 @@ char xcmd_builder_buffer[XCMD_BUILDER_BUFFER_LEN];
 #endif /* CFG_XCOMMAND_BUILDER_CLI_INCLUDED */
 #endif /* CFG_XCOMMAND_INCLUDED */
 
+#ifdef CFG_SDKCLI_INCLUDED
+APISTATIC void cli_cmd_switch_sdkcli_shell(CLI_CMD_OP op) REENTRANT;
+#endif /* CFG_SDKCLI_INCLUDED */
+
 #if defined(CFG_SWITCH_L2_ADDR_INCLUDED)
 APISTATIC void cli_cmd_l2(CLI_CMD_OP op) REENTRANT;
 #endif /* CFG_SWITCH_L2_ADDR_INCLUDED */
@@ -198,6 +209,136 @@ APIFUNC(cli_cmd_switch_xcmd_builder)(CLI_CMD_OP op) REENTRANT
 }
 #endif /* CFG_XCOMMAND_BUILDER_CLI_INCLUDED */
 #endif /* CFG_XCOMMAND_INCLUDED */
+
+#ifdef CFG_SDKCLI_INCLUDED
+#include <stdio.h>
+#include <unistd.h>
+
+extern char get_char(void);
+extern int um_console_write(const char *buffer,int length);
+extern void sal_console_init(int reset);
+
+
+static int
+bcma_io_term_read(void *buf, int max)
+{
+    if (!buf) {
+        return 0;
+    } else {
+        char *c = buf;
+        *c = get_char();
+        return 1;
+    }
+}
+
+static int
+bcma_io_term_write(const void *buf, int count)
+{
+    const char *c_buf = buf;
+    return um_console_write(c_buf, count);
+}
+
+
+int
+bcma_io_term_mode_set(int reset)
+{
+    sal_console_init(reset);
+    return 0;
+}
+
+int
+bcma_io_term_winsize_get(int *cols, int *rows)
+{
+    if (cols == NULL || rows == NULL) {
+        return -1;
+    }
+    *cols = 80;
+    *rows = 24;
+    return 0;
+}
+
+
+static bcma_editline_io_cb_t el_io_cb = {
+    bcma_io_term_read,
+    bcma_io_term_write,
+    bcma_io_term_mode_set,
+    bcma_io_term_winsize_get,
+    NULL,
+    NULL
+};
+
+APISTATIC int
+sdkcli_gets(struct bcma_cli_s *cli, const char *prompt, int max, char *buf)
+{
+    char *str = NULL;
+
+    if (((int)sal_strlen(buf) + 1) >= max) {
+        return BCMA_CLI_CMD_BAD_ARG;
+    }
+
+    str = readline(prompt); /* provided by editline */
+    if (str == NULL) {
+        return BCMA_CLI_CMD_EXIT;
+    } else {
+        int len = sal_strlen(str) + 1;
+        sal_memcpy(buf, str, len > max ? max : len);
+        buf[max - 1] = '\0';
+    }
+    bcma_rl_free(str); /* free the memory that allocated by editline */
+    return BCMA_CLI_CMD_OK;
+}
+
+APISTATIC void
+sdkcli_history_add(int max, char *str)
+{
+    char *cmd_last = NULL;
+    char *p = str;
+
+    /* Remove the heading spaces if any. */
+    while (p && sal_isspace(*p)) {
+        p++;
+    }
+
+    /* Do no add empty string to history. */
+    if (!p || !*p) {
+        return;
+    }
+
+    /* Do not add the last duplicate command to history */
+    cmd_last = bcma_editline_history_get(-1);
+    if (cmd_last && sal_strcmp(p, cmd_last) == 0) {
+        return;
+    }
+
+    /* Add command to history */
+    add_history(p);
+}
+
+
+APISTATIC void
+APIFUNC(cli_cmd_switch_sdkcli_shell)(CLI_CMD_OP op) REENTRANT
+
+{
+    if (op == CLI_CMD_OP_HELP) {
+        sal_printf("Command to enter sdkcli shell.\n");
+    } else if (op == CLI_CMD_OP_DESC) {
+        sal_printf("Command to enter sdkcli shell.\n");
+    } else {
+        bcma_cli_t *sdk_cli = NULL;
+
+        /* Initialize SDK-version of readline */
+        bcma_editline_init(&el_io_cb, NULL);
+
+        sdk_cli = bcma_cli_create();
+        bcma_cli_input_cb_set(sdk_cli, "SDKCLI", sdkcli_gets, sdkcli_history_add);
+        bcma_clicmd_add_basic_cmds(sdk_cli);
+        bcma_clicmd_add_switch_cmds(sdk_cli);
+        bcma_cli_cmd_loop(sdk_cli);
+        bcma_cli_destroy(sdk_cli);
+        sdk_cli = NULL;
+    }
+}
+#endif /* CFG_SDKCLI_INCLUDED */
 
 #ifdef BRD_VLAN_DEBUG   /* included in CFG_SWITCH_VLAN_INCLUDED */
 extern void _brdimpl_dump_vlan_info(void) REENTRANT;
@@ -1266,6 +1407,10 @@ APIFUNC(ui_switch_init)(void) REENTRANT
     cli_add_cmd('b', cli_cmd_switch_xcmd_builder);
 #endif /* CFG_XCOMMAND_BUILDER_CLI_INCLUDED */
 #endif /* CFG_XCOMMAND_INCLUDED */
+
+#ifdef CFG_SDKCLI_INCLUDED
+    cli_add_cmd('X', cli_cmd_switch_sdkcli_shell);
+#endif /* CFG_SDKCLI_INCLUDED */
 
      cli_add_cmd('l', ui_switch_misc);
 #if defined(CFG_SWITCH_L2_ADDR_INCLUDED)

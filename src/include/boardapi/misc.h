@@ -1,5 +1,5 @@
 /*
- * 
+ * $Id: misc.h,v 1.21 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -11,6 +11,11 @@
 
 #if CFG_FLASH_SUPPORT_ENABLED
 /* Get flash device object */
+/*!
+ * \brief Get the flash device object.
+ *
+ * \return Pointer to flash device (e.g., n25q256_dev).
+ */
 extern flash_dev_t * board_get_flash_dev(void) REENTRANT;
 #endif /* CFG_FLASH_SUPPORT_ENABLED */
 
@@ -93,26 +98,75 @@ extern BOOL board_check_imageheader(msaddr_t address) REENTRANT;
 /*
  * System Reset
  */
+/*!
+ * \brief Set the board to reset.
+ *
+ * \param [in] param 0 or input data.
+ *
+ * \return VOID
+ */
 extern void board_reset(void *param) REENTRANT;
 
 /*
  * Enable/Disable loop detect functionality.
  */
+/*!
+* \brief Set the loop-detect state.
+*
+* \param [in] enable
+*    \li TRUE = Enable loop detect.
+*    \li FALSE = Disable loop detect.
+*/
 extern void board_loop_detect_enable(BOOL enable);
 
+/*!
+ * \brief Get whether the loop-detect state.
+ *
+ * \return \li TRUE = Enable loop detect.
+ *           \li FALSE = Disable loop detect.
+ */
 extern uint8 board_loop_detect_status_get(void);
 enum {
-   BOARD_PHY_LED_NORMAL, 
-   BOARD_PHY_LED_LOOP_FOUND, 
+   BOARD_PHY_LED_NORMAL,
+   BOARD_PHY_LED_LOOP_FOUND,
 } board_phy_led_mode;
 extern BOOL board_phy_led_mode_set(uint8 lport, int mode);
 
+/*!
+ * \brief Get the firmware version.
+ *
+ * \param [out] major Major number.
+ * \param [out] minor Minor number.
+ * \param [out] eco Eco number.
+ * \param [out] misc Not used.
+ *
+ * \return VOID
+ */
 extern void board_firmware_version_get(uint8 *major, uint8 *minor,
                                        uint8 *eco, uint8 *misc) REENTRANT;
 
 
 #ifdef CFG_ZEROCONF_MDNS_INCLUDED
+/*!
+ * \brief Set the mdns state.
+ *
+ * \param [in] enable
+ *    \li TRUE = Enable MDNS.
+ *    \li FALSE = Disable MDNS.
+ *
+ * \retval SYS_OK No errors.
+ */
 extern sys_error_t board_mdns_enable_set(BOOL enable);
+
+/*!
+ * \brief Get the mdns state.
+ *
+ * \param [out] enable
+ *    \li TRUE = MDNS is enabled.
+ *    \li FALSE = MDNS is disabled.
+ *
+ * \retval SYS_OK No errors.
+ */
 extern sys_error_t board_mdns_enable_get(BOOL *enable);
 #endif /* CFG_ZEROCONF_MDNS_INCLUDED */
 

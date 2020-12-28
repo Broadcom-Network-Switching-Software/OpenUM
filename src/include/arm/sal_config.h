@@ -1,5 +1,5 @@
 /*
- * 
+ * $Id: sal_config.h,v 1.31 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -192,6 +192,7 @@ extern sys_error_t sal_config_uint32_get(const char*name, uint32* word);
 #define SAL_CONFIG_QTC_INTERFACE               "qtc_interface"
 #define SAL_CONFIG_TSCE_INTERFACE              "tsce_interface"
 #define SAL_CONFIG_TSCF_INTERFACE              "tscf_interface"
+#define SAL_CONFIG_TSC_INTERFACE               "tsc_interface"
 #define SAL_CONFIG_SGMIIPX4_INTERFACE          "sgmiip4_interface"
 #define SAL_CONFIG_VIPER_INTERFACE             "viper_interface"
 
@@ -219,4 +220,13 @@ extern sys_error_t sal_config_uint32_get(const char*name, uint32* word);
  */
 
 #define SAL_CONFIG_PORTMAP                          "portmap"
+/*
+ * Select chassis mode by specifying non-zero port bitmap for active ports
+ * connected to the backplane.
+ */
+#define SAL_CONFIG_ACTIVE_BACKPLANE_PBMP            "active_backplane_pbmp"
+
+/* Enable 1000X at 25G vco. default is running at 20G vco  1 enable */
+#define SAL_CONFIG_SERDES_1000X_AT_25G_VCO  "serdes_1000x_at_25g_vco"
+
 #endif /* CFG_VENDOR_CONFIG_SUPPORT_INCLUDED */

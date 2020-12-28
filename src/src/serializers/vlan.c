@@ -1,4 +1,5 @@
 /*
+ * $Id: vlan.c,v 1.23 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -127,30 +128,24 @@ vlan_serializer(SERIALIZE_OP op, SERL_MEDIUM_BIN *medium) REENTRANT
 
         board_vlan_type_get(&type);
 
-        if (SAL_IS_UMPLUS()) {            
-            board_vlan_type_set(VT_PORT_BASED); /* set port based vlan as default for umplus solution */
-            return 0;
-        }
-        
         if (VT_DOT1Q == type) {
             vlan_count = board_vlan_count();
-            
-            
+
             SAL_UPORT_ITER(i) {
                 board_untagged_vlan_get(i, &pvid);
-                
+
                 if(VLAN_DEFAULT != pvid){
                     board_untagged_vlan_set(i, VLAN_DEFAULT);
                 }
             }
-            
+
             while(vlan_count-- > 0) {
                 board_qvlan_get_by_index(vlan_count, &vlan_id, uplist, tag_uplist, TRUE);
-                
+
                 if (VLAN_DEFAULT == vlan_id) {
-                    
+
                     for (i = 0; i < MAX_UPLIST_WIDTH; i++) {
-                        
+
                         if (tag_uplist[i] != 0) {
                             tag_uplist[i] = 0;
                         }
@@ -159,16 +154,16 @@ vlan_serializer(SERIALIZE_OP op, SERL_MEDIUM_BIN *medium) REENTRANT
                         }
                     }
                     board_qvlan_port_set(vlan_id, uplist, tag_uplist);
-                    
+
                 } else {
                     board_vlan_destroy(vlan_id);
                 }
             }
-            
+
         }else{
             board_vlan_type_set(VT_DOT1Q);
         }
-        
+
         return 0;
     }
 

@@ -1,5 +1,5 @@
 /*
- * 
+ * $Id: net.h,v 1.27 Broadcom SDK $
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
@@ -9,7 +9,9 @@
 #ifndef _UTILS_NET_H_
 #define _UTILS_NET_H_
 
+#if CFG_UIP_STACK_ENABLED
 #include "uip.h"
+#endif
 
 #if ((CFG_BIG_ENDIAN + CFG_LITTLE_ENDIAN) != 1)
 #error "system endian not set"
