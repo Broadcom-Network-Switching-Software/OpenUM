@@ -5,7 +5,7 @@
 /*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef BCMA_CLI_CONFIG_H
@@ -23,7 +23,7 @@
 
 /*! Maximum length of raw command line. */
 #ifndef BCMA_CLI_CONFIG_INPUT_BUFFER_MAX
-#define BCMA_CLI_CONFIG_INPUT_BUFFER_MAX     8192
+#define BCMA_CLI_CONFIG_INPUT_BUFFER_MAX     1024
 #endif
 
 /*! Maximum length of buffer for parsed commands. */
@@ -33,7 +33,7 @@
 
 /*! Maximum number tokens in a single CLI command. */
 #ifndef BCMA_CLI_CONFIG_ARGS_CNT_MAX
-#define BCMA_CLI_CONFIG_ARGS_CNT_MAX         512
+#define BCMA_CLI_CONFIG_ARGS_CNT_MAX         64
 #endif
 
 /*! Maximum size of a token */

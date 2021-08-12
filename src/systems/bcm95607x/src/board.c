@@ -3,13 +3,13 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 #include "system.h"
 #include "bsp_config.h"
 #include "brdimpl.h"
 #include "utils/ports.h"
-
+#include "pcm.h"
 
 /* Change the port name to the lport# */
 #define SOC_PORT_NAME(unit, port)       (lport)
@@ -55,6 +55,9 @@
 
 
 extern soc_switch_t soc_switch_bcm5607x;
+#ifdef CFG_CHIP_SYMBOLS_INCLUDED
+extern chip_info_t bcm5607x_chip_info;
+#endif /* CFG_CHIP_SYMBOLS_INCLUDED */
 #if CFG_FLASH_SUPPORT_ENABLED
 /* Flash device driver. */
 extern flash_dev_t n25q256_dev;
@@ -326,6 +329,25 @@ board_get_soc_by_unit(uint8 unit)
     return &soc_switch_bcm5607x;
 }
 
+/**
+ * <b>Description:</b> Get chip information by unit.
+ * @param unit - Unit number.
+ * @return Pointer to chip information.
+ */
+
+chip_info_t *
+board_get_chipinfo_by_unit(uint8 unit)
+{
+    if (unit > 0) {
+        return NULL;
+    }
+#ifdef CFG_CHIP_SYMBOLS_INCLUDED
+    return &bcm5607x_chip_info;
+#else
+    return NULL;
+#endif /* CFG_CHIP_SYMBOLS_INCLUDED */
+}
+
 /*!
  * \brief Set the board to reset.
  *
@@ -444,8 +466,14 @@ board_check_image(hsaddr_t address, hsaddr_t *outaddr)
     buf[4] = 0;
     hdrchksum = (uint16)sal_xtoi((const char*)buf);
 #if CFG_CONSOLE_ENABLED
+#ifdef CFG_IMAGE_ID
+    sal_printf("Flash image %c is %d bytes, chksum %04X, version %c.%c.%c for board %s\n",
+                hdr->miscver, size, hdrchksum, hdr->majver,
+                hdr->minver, hdr->ecover, hdr->boardname);
+#else
     sal_printf("Flash image is %d bytes, chksum %04X, version %c.%c.%c for board %s\n",
                 size, hdrchksum, hdr->majver, hdr->minver, hdr->ecover, hdr->boardname);
+#endif /* CFG_IMAGE_ID */
 #endif /* CFG_CONSOLE_ENABLED */
     if (sal_strcmp(board_name(), (const char*)hdr->boardname) != 0) {
 #if CFG_CONSOLE_ENABLED
@@ -475,6 +503,9 @@ BOOL
 board_check_imageheader(msaddr_t address)
 {
     flash_imghdr_t *hdr = (flash_imghdr_t *)address;
+#ifdef CFG_IMAGE_ID
+    int32 image_id;
+#endif
 
     if (sal_memcmp(hdr->seal, UM_IMAGE_HEADER_SEAL, sizeof(hdr->seal)) != 0) {
 #if CFG_CONSOLE_ENABLED && !defined(CFG_DUAL_IMAGE_INCLUDED)
@@ -484,8 +515,14 @@ board_check_imageheader(msaddr_t address)
     }
 
 #if CFG_CONSOLE_ENABLED
+#ifdef CFG_IMAGE_ID
+    sal_printf("Flash image %c is version %c.%c.%c for board %s\n",
+                hdr->miscver, hdr->majver, hdr->minver,
+                hdr->ecover, hdr->boardname);
+#else
     sal_printf("Flash image is version %c.%c.%c for board %s\n",
                 hdr->majver, hdr->minver, hdr->ecover, hdr->boardname);
+#endif /* CFG_IMAGE_ID */
 #endif /* CFG_CONSOLE_ENABLED */
     if (sal_strcmp(board_name(), (const char*)hdr->boardname) != 0) {
 #if CFG_CONSOLE_ENABLED
@@ -493,6 +530,29 @@ board_check_imageheader(msaddr_t address)
 #endif /* CFG_CONSOLE_ENABLED */
         return FALSE;
     }
+
+    /* check image ID */
+#if CFG_IMAGE_ID
+    /* miscver is used as image ID */
+    image_id = sal_atoi((char*)&hdr->miscver);
+    if (address == BOARD_FIRMWARE_ADDR) {
+        if (image_id != CFG_IMAGE_1_ID) {
+#if CFG_CONSOLE_ENABLED
+            sal_printf("First image ID should be %d, but is '%d'\n",
+                        CFG_IMAGE_1_ID, image_id);
+#endif
+            return FALSE;
+        }
+    } else if (address == BOARD_SECONDARY_FIRMWARE_ADDR) {
+        if (image_id != CFG_IMAGE_2_ID) {
+#if CFG_CONSOLE_ENABLED
+            sal_printf("Second image ID should be %d, but is '%d'\n",
+                        CFG_IMAGE_2_ID, image_id);
+#endif
+            return FALSE;
+        }
+    }
+#endif
 
     return TRUE;
 }
@@ -1338,69 +1398,12 @@ board_qos_type_set(qos_type_t type)
 {
 
     sys_error_t rv = SYS_OK;
-
-    int i;
-
-    FP_TCAMm_t fp_tcam;
-    FP_PORT_FIELD_SELm_t fp_port_field_sel;
-
-    if (type == qos_info) {
-        return SYS_OK;
-    }
-
-    if (type == QT_DOT1P_PRIORITY) {
-        /*
-        * 802.1P QoS use entries [512+128] ~ [512+128+7].
-        */
-        for (i = 0; i <= 7; i++) {
-            READ_FP_TCAMm(0, DOT1P_BASE_IDX + i, fp_tcam);
-            FP_TCAMm_VALIDf_SET(fp_tcam, 3);
-            WRITE_FP_TCAMm(0, DOT1P_BASE_IDX + i, fp_tcam);
-        }
-
-        for (i = BCM5607X_LPORT_MIN; i <= BCM5607X_LPORT_MAX; i++) {
-            READ_FP_TCAMm(0, QOS_BASE_IDX + (i - BCM5607X_LPORT_MIN), fp_tcam);
-            FP_TCAMm_VALIDf_SET(fp_tcam, 0);
-            WRITE_FP_TCAMm(0, QOS_BASE_IDX + (i - BCM5607X_LPORT_MIN), fp_tcam);
-        }
-
-        for (i = BCM5607X_LPORT_MIN; i <= BCM5607X_LPORT_MAX; i++) {
-            /* Set SLICE2_F3 = 3, clear source port qualifier Slice2_F1=11 */
-            READ_FP_PORT_FIELD_SELm(0, i, fp_port_field_sel);
-            FP_PORT_FIELD_SELm_SLICE2_F3f_SET(fp_port_field_sel, 0x3);
-            WRITE_FP_PORT_FIELD_SELm(0, i, fp_port_field_sel);
-        }
-
-        bcm5607x_dscp_map_enable(1);
-    } else if (type == QT_PORT_BASED) {
-        /*
-         * Port based QoS use entries QOS_BASE_IDX                   (2 * ENTRIES_PER_SLICE)
-         * It'll be created in board_untagged_priority_set later.
-         */
-        for (i = BCM5607X_LPORT_MIN; i <= BCM5607X_LPORT_MAX; i++) {
-            READ_FP_TCAMm(0, QOS_BASE_IDX + (i - BCM5607X_LPORT_MIN), fp_tcam);
-            FP_TCAMm_VALIDf_SET(fp_tcam, 3);
-            WRITE_FP_TCAMm(0, QOS_BASE_IDX + (i - BCM5607X_LPORT_MIN), fp_tcam);
-        }
-
-        for (i = 0; i <= 7; i++) {
-            READ_FP_TCAMm(0, DOT1P_BASE_IDX + i, fp_tcam);
-            FP_TCAMm_VALIDf_SET(fp_tcam, 0);
-            WRITE_FP_TCAMm(0, DOT1P_BASE_IDX + i, fp_tcam);
-        }
-
-        for (i = BCM5607X_LPORT_MIN; i <= BCM5607X_LPORT_MAX; i++) {
-            /* Set SLICE2_F1 = 11(0xb), clear VLAN qualifier F3=3*/
-            READ_FP_PORT_FIELD_SELm(0, i, fp_port_field_sel);
-            FP_PORT_FIELD_SELm_SLICE2_F3f_SET(fp_port_field_sel, 0xb);
-            WRITE_FP_PORT_FIELD_SELm(0, i, fp_port_field_sel);
-        }
-
-        /* disable dscp while Qos in port_based */
-        bcm5607x_dscp_map_enable(0);
-    }
-
+    /*
+     * Only support 802.1P for FL
+     */
+    type = QT_DOT1P_PRIORITY;
     qos_info = type;
+
     return rv;
 }
 
@@ -1431,54 +1434,10 @@ board_qos_type_get(qos_type_t *type)
 sys_error_t
 board_untagged_priority_set(uint16 uport, uint8 priority)
 {
-    sys_error_t rv;
-    uint8 unit, lport;
-    int i;
-
-
-    FP_TCAMm_t fp_tcam;
-    FP_GLOBAL_MASK_TCAMm_t fp_global_mask_tcam;
-    FP_POLICY_TABLEm_t fp_policy_table;
-
-    GLP_t glp;
-    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
-
-    /* While enable QoS priority in FP, need to disable "1p priority higher than DSCP,
-       using set invalid bit in FP_TCAM */
-    for (i = 0; i < 8; i++) {
-        READ_FP_TCAMm(unit, (DOT1P_BASE_IDX + i), fp_tcam);
-        FP_TCAMm_VALIDf_SET(fp_tcam, 0);
-        rv = WRITE_FP_TCAMm(unit, (DOT1P_BASE_IDX + i), fp_tcam);
-    }
-
-    FP_POLICY_TABLEm_CLR(fp_policy_table);
-    FP_POLICY_TABLEm_R_COS_INT_PRIf_SET(fp_policy_table, priority);
-    FP_POLICY_TABLEm_Y_COS_INT_PRIf_SET(fp_policy_table, priority);
-    FP_POLICY_TABLEm_G_COS_INT_PRIf_SET(fp_policy_table, priority);
-    FP_POLICY_TABLEm_R_CHANGE_COS_OR_INT_PRIf_SET(fp_policy_table, 5);
-    FP_POLICY_TABLEm_Y_CHANGE_COS_OR_INT_PRIf_SET(fp_policy_table, 5);
-    FP_POLICY_TABLEm_G_CHANGE_COS_OR_INT_PRIf_SET(fp_policy_table, 5);
-    FP_POLICY_TABLEm_METER_SHARING_MODE_MODIFIERf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_METER_PAIR_MODE_MODIFIERf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_GREEN_TO_PIDf_SET(fp_policy_table, 1);
-    WRITE_FP_POLICY_TABLEm(unit,QOS_BASE_IDX + (lport - BCM5607X_LPORT_MIN), fp_policy_table);
-
-
-    /* Using FP slice 2, entry 0~ for port based qos */
-    GLP_CLR(glp);
-    GLP_PORTf_SET(glp, lport);
-    FP_TCAMm_CLR(fp_tcam);
-    FP_TCAMm_F3_11_SGLPf_SET(fp_tcam, GLP_GET(glp));
-    FP_TCAMm_F3_11_SGLP_MASKf_SET(fp_tcam, 0xFFFFFFFF);
-    FP_TCAMm_VALIDf_SET(fp_tcam, 3);
-    WRITE_FP_TCAMm(unit,QOS_BASE_IDX + (lport - BCM5607X_LPORT_MIN), fp_tcam);
-
-
-    FP_GLOBAL_MASK_TCAMm_CLR(fp_global_mask_tcam);
-    FP_GLOBAL_MASK_TCAMm_VALIDf_SET(fp_global_mask_tcam, 1);
-    WRITE_FP_GLOBAL_MASK_TCAMm(unit,QOS_BASE_IDX + (lport - BCM5607X_LPORT_MIN),fp_global_mask_tcam);
-
-    return rv;
+    /*
+     * Not support for FL UM.
+     */
+    return SYS_ERR_UNAVAIL;
 }
 
 /*!
@@ -1492,17 +1451,10 @@ board_untagged_priority_set(uint16 uport, uint8 priority)
 sys_error_t
 board_untagged_priority_get(uint16 uport, uint8 *priority)
 {
-    sys_error_t rv;
-    uint8 unit, lport;
-
-    FP_POLICY_TABLEm_t fp_policy_table;
-
-    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
-
-    rv = READ_FP_POLICY_TABLEm(unit, QOS_BASE_IDX + (lport - BCM5607X_LPORT_MIN), fp_policy_table);
-    *priority = FP_POLICY_TABLEm_G_COS_INT_PRIf_GET(fp_policy_table);
-
-    return rv;
+    /*
+     * Not support for FL
+     */
+    return SYS_ERR_UNAVAIL;
 }
 #endif /* CFG_SWITCH_QOS_INCLUDED */
 
@@ -3190,7 +3142,14 @@ board_mdns_enable_get(BOOL *enable)
 sys_error_t
 board_port_reinit(uint16 uport)
 {
-    return SYS_ERR;
+    sys_error_t r;
+    uint8 unit, lport;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    r = pcm_port_reinit(unit, lport);
+
+    return r;
 }
 
 /*!
@@ -3206,7 +3165,14 @@ board_port_reinit(uint16 uport)
 sys_error_t
 board_port_speed_set(uint16 uport, int speed)
 {
-    return SYS_ERR;
+    uint8 unit, lport;
+    sys_error_t r;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    r = pcm_port_speed_set(unit, lport, speed);
+
+    return r;
 }
 
 /*!
@@ -3222,7 +3188,19 @@ board_port_speed_set(uint16 uport, int speed)
 sys_error_t
 board_port_speed_get(uint16 uport, int *speed)
 {
-    return SYS_ERR;
+    uint8 unit, lport;
+    sys_error_t r;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    if (speed == NULL) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    *speed = 0;
+    r = pcm_port_speed_get(unit, lport, speed);
+
+    return r;
 }
 
 /*!
@@ -3238,7 +3216,14 @@ board_port_speed_get(uint16 uport, int *speed)
 sys_error_t
 board_port_interface_set(uint16 uport, port_if_t intf)
 {
-    return SYS_ERR;
+    uint8 unit, lport;
+    sys_error_t r;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    r = pcm_port_interface_set(unit, lport, (int)intf);
+
+    return r;
 }
 
 /*!
@@ -3254,7 +3239,19 @@ board_port_interface_set(uint16 uport, port_if_t intf)
 sys_error_t
 board_port_interface_get(uint16 uport, port_if_t *intf)
 {
-    return SYS_ERR;
+    uint8 unit, lport;
+    sys_error_t r = SYS_OK;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    if (intf == NULL) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    *intf = 0;
+    r = pcm_port_interface_get(unit, lport, (int *)intf);
+
+    return r;
 }
 
 /*!
@@ -3270,7 +3267,15 @@ board_port_interface_get(uint16 uport, port_if_t *intf)
 sys_error_t
 board_port_an_set(uint16 uport, BOOL an)
 {
-    return SYS_ERR;
+    uint8 unit, lport;
+    int autoneg = (an == TRUE) ? 1 : 0;
+    sys_error_t r;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    r = pcm_port_autoneg_set(unit, lport, autoneg);
+
+    return r;
 }
 
 /*!
@@ -3287,14 +3292,86 @@ sys_error_t
 board_port_an_get(uint16 uport, BOOL *an)
 {
     uint8 unit, lport;
-
-    *an = 0;
+    int autoneg;
+    sys_error_t r;
 
     SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
 
-    *an = SOC_PORT_AN_STATUS(lport);
+    if (an == NULL) {
+        return SYS_ERR_PARAMETER;
+    }
 
-    return SYS_OK;
+    r = pcm_port_autoneg_get(unit, lport, &autoneg);
+    *an = (autoneg) ? TRUE : FALSE;
+
+    return r;
+}
+
+/*!
+ * \brief Setting the port duplex state
+ *
+ * This function is used to set the duplex mode for a given port.
+ *
+ * \param [in] uport Port number.
+ * \param [in] duplex Duplex mode
+ *
+ * \retval SYS_OK No errors.
+ */
+sys_error_t
+board_port_duplex_set(uint16 uport, port_duplex_t duplex)
+{
+    uint8 unit, lport;
+    int dp;
+    sys_error_t r;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    if (duplex >= PORT_DUPLEX_COUNT) {
+        return SYS_ERR_PARAMETER;
+    } else {
+        if (duplex == PORT_DUPLEX_HALF) {
+            dp = PCM_PORT_DUPLEX_HALF;
+        } else if (duplex == PORT_DUPLEX_FULL) {
+            dp = PCM_PORT_DUPLEX_FULL;
+        }
+    }
+
+    r = pcm_port_duplex_set(unit, lport, dp);
+
+    return r;
+}
+
+/*!
+ * \brief Getting the port duplex state
+ *
+ * This function is used to get the duplex mode for a given port.
+ *
+ * \param [in] uport Port number.
+ * \param [out] duplex Duplex mode
+ *
+ * \retval SYS_OK No errors.
+ */
+sys_error_t
+board_port_duplex_get(uint16 uport, port_duplex_t *duplex)
+{
+    uint8 unit, lport;
+    int dp;
+    sys_error_t r;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    if (duplex == NULL) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    r = pcm_port_duplex_get(unit, lport, &dp);
+    if (dp == PCM_PORT_DUPLEX_HALF) {
+        *duplex = PORT_DUPLEX_HALF;
+    } else {
+        *duplex = PORT_DUPLEX_FULL;
+    }
+
+    return r;
 }
 
 /*!
@@ -3310,13 +3387,13 @@ board_port_an_get(uint16 uport, BOOL *an)
 sys_error_t
 board_port_enable_set(uint16 uport, BOOL enable)
 {
-    uint8 unit;
-    uint8 lport;
+    uint8 unit, lport;
+    int en = (enable == TRUE) ? 1 : 0;
     sys_error_t r;
 
     SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
 
-    r = pcm_port_enable_set(unit,lport,enable);
+    r = pcm_port_enable_set(unit, lport, en);
 
     return r;
 }
@@ -3338,13 +3415,14 @@ board_port_enable_get(uint16 uport, BOOL *enable)
     sys_error_t r;
     int en;
 
-    *enable = FALSE;
-
     SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
 
-    r = pcm_port_enable_get(unit, lport, &en);
+    if (enable == NULL) {
+        return SYS_ERR_PARAMETER;
+    }
 
-    *enable = en;
+    r = pcm_port_enable_get(unit, lport, &en);
+    *enable = (en) ? TRUE : FALSE;
 
     return r;
 }
@@ -3363,12 +3441,28 @@ sys_error_t
 board_port_loopback_set(uint16 uport, port_loopback_t loopback)
 {
     uint8 unit, lport;
+    sys_error_t r;
+    int lb;
 
     SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
 
-    bcm5607x_loopback_enable(unit, lport, loopback);
+    if (loopback >= PORT_LOOPBACK_COUNT) {
+        return SYS_ERR_PARAMETER;
+    } else {
+        if (loopback == PORT_LOOPBACK_NONE) {
+            lb = PCM_PORT_LOOPBACK_NONE;
+        } else if (loopback == PORT_LOOPBACK_MAC) {
+            lb = PCM_PORT_LOOPBACK_MAC;
+        } else if (loopback == PORT_LOOPBACK_PHY) {
+            lb = PCM_PORT_LOOPBACK_PHY;
+        } else if (loopback == PORT_LOOPBACK_PHY_REMOTE) {
+            lb = PCM_PORT_LOOPBACK_PHY_REMOTE;
+        }
+    }
 
-    return SYS_OK;
+    r = pcm_port_loopback_set(unit, lport, lb);
+
+    return r;
 }
 
 /*!
@@ -3384,7 +3478,29 @@ board_port_loopback_set(uint16 uport, port_loopback_t loopback)
 sys_error_t
 board_port_loopback_get(uint16 uport, port_loopback_t *loopback)
 {
-    return SYS_ERR;
+    uint8 unit, lport;
+    sys_error_t r;
+    int lb;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    r = pcm_port_loopback_get(unit, lport, &lb);
+
+    if (loopback == NULL) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    if (lb == PCM_PORT_LOOPBACK_MAC) {
+        *loopback = PORT_LOOPBACK_MAC;
+    } else if (lb == PCM_PORT_LOOPBACK_PHY) {
+        *loopback = PORT_LOOPBACK_PHY;
+    } else if (lb == PCM_PORT_LOOPBACK_PHY_REMOTE) {
+        *loopback = PORT_LOOPBACK_PHY_REMOTE;
+    } else {
+        *loopback = PORT_LOOPBACK_NONE;
+    }
+
+    return r;
 }
 
 /*!
@@ -3393,16 +3509,21 @@ board_port_loopback_get(uint16 uport, port_loopback_t *loopback)
  * This function is used to set the new ifg (Inter-frame gap) value for a given port.
  *
  * \param [in] uport Port number.
- * \param [in] speed The speed for which the IFG is being set.
- * \param [in] duplex The duplex for which the IFG is being set.
  * \param [in] ifg Inter-frame gap in bit-times.
  *
  * \retval SYS_OK No errors.
  */
 sys_error_t
-board_port_ifg_set(uint16 uport, int speed, port_duplex_t duplex, int ifg)
+board_port_ifg_set(uint16 uport, int ifg)
 {
-    return SYS_ERR;
+    uint8 unit, lport;
+    sys_error_t r;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    r = pcm_port_ifg_set(unit, lport, ifg);
+
+    return r;
 }
 
 /*!
@@ -3411,16 +3532,26 @@ board_port_ifg_set(uint16 uport, int speed, port_duplex_t duplex, int ifg)
  * This function is used to get the new ifg (Inter-frame gap) value for a given port.
  *
  * \param [in] uport Port number.
- * \param [in] speed The speed for which the IFG is being set.
- * \param [in] duplex The duplex for which the IFG is being set.
  * \param [out] ifg Inter-frame gap in bit-times.
  *
  * \retval SYS_OK No errors.
  */
 sys_error_t
-board_port_ifg_get(uint16 uport, int speed, port_duplex_t duplex, int *ifg)
+board_port_ifg_get(uint16 uport, int *ifg)
 {
-    return SYS_ERR;
+    uint8 unit, lport;
+    sys_error_t r;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    if (ifg == NULL) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    *ifg = 0;
+    r = pcm_port_ifg_get(unit, lport, ifg);
+
+    return r;
 }
 
 /*!
@@ -3436,7 +3567,14 @@ board_port_ifg_get(uint16 uport, int speed, port_duplex_t duplex, int *ifg)
 sys_error_t
 board_port_frame_max_set(uint16 uport, int size)
 {
-    return SYS_ERR;
+    uint8 unit, lport;
+    sys_error_t r;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    r = pcm_port_frame_max_set(unit, lport, size);
+
+    return r;
 }
 
 /*!
@@ -3452,7 +3590,19 @@ board_port_frame_max_set(uint16 uport, int size)
 sys_error_t
 board_port_frame_max_get(uint16 uport, int *size)
 {
-    return SYS_ERR;
+    uint8 unit, lport;
+    sys_error_t r;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    if (size == NULL) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    *size = 0;
+    r = pcm_port_frame_max_get(unit, lport, size);
+
+    return r;
 }
 
 /*!
@@ -3469,7 +3619,16 @@ board_port_frame_max_get(uint16 uport, int *size)
 sys_error_t
 board_port_pause_set(uint16 uport, BOOL pause_tx, BOOL pause_rx)
 {
-    return SYS_ERR;
+    uint8 unit, lport;
+    int txp = (pause_tx == TRUE) ? 1 : 0;
+    int rxp = (pause_rx == TRUE) ? 1 : 0;
+    sys_error_t r;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    r = pcm_port_pause_set(unit, lport, txp, rxp);
+
+    return r;
 }
 
 /*!
@@ -3487,15 +3646,21 @@ sys_error_t
 board_port_pause_get(uint16 uport, BOOL *pause_tx, BOOL *pause_rx)
 {
     uint8 unit, lport;
+    int txp, rxp;
+    sys_error_t r;
 
-    *pause_tx = 0;
-    *pause_rx = 0;
     SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
 
-    *pause_tx = SOC_PORT_TX_PAUSE_STATUS(lport);
-    *pause_rx = SOC_PORT_RX_PAUSE_STATUS(lport);
+    if (pause_tx == NULL || pause_rx == NULL) {
+        return SYS_ERR_PARAMETER;
+    }
 
-    return SYS_OK;
+    r = pcm_port_pause_get(unit, lport, &txp, &rxp);
+
+    *pause_tx = (txp) ? TRUE : FALSE;
+    *pause_rx = (rxp) ? TRUE : FALSE;
+
+    return r;
 }
 
 /*!
@@ -3512,7 +3677,14 @@ board_port_pause_get(uint16 uport, BOOL *pause_tx, BOOL *pause_rx)
 sys_error_t
 board_port_class_set(uint16 uport, port_class_t pclass, uint32 pclass_id)
 {
-    return SYS_ERR;
+    uint8 unit, lport;
+    sys_error_t r = SYS_OK;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    r = bcm5607x_port_class_set(unit, lport, pclass, pclass_id);
+
+    return r;
 }
 
 /*!
@@ -3529,10 +3701,20 @@ board_port_class_set(uint16 uport, port_class_t pclass, uint32 pclass_id)
 sys_error_t
 board_port_class_get(uint16 uport, port_class_t pclass, uint32 *pclass_id)
 {
-    return SYS_ERR;
-}
+    uint8 unit, lport;
+    sys_error_t r = SYS_OK;
 
-#if !CONFIG_FIRELIGHT_ROMCODE
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    if (pclass_id == NULL) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    *pclass_id = 0;
+    r = bcm5607x_port_class_get(unit, lport, pclass, pclass_id);
+
+    return r;
+}
 
 /*!
  * \brief Get the link status
@@ -3548,37 +3730,107 @@ sys_error_t
 board_port_link_status_get(uint16 uport, BOOL *link)
 {
     uint8 unit, lport;
-    sys_error_t r;
-    r = board_uport_to_lport(uport, &unit, &lport);
-    if (r != SYS_OK) {
-        return r;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    if (link == NULL) {
+        return SYS_ERR_PARAMETER;
     }
 
-    return (*soc_switch_bcm5607x.link_status)(unit, lport, link);
+    *link = SOC_PORT_LINK_STATUS(lport);
+
+    return SYS_OK;
 }
-#endif /* !CONFIG_FIRELIGHT_ROMCODE */
 
+/*!
+ * \brief Get the link status
+ *
+ * This function is used to get the current speed status for a given port.
+ *
+ * \param [in] uport Port number.
+ * \param [out] speed Speed alue in megabits/sec (10, 100, etc).
+ *
+ * \retval SYS_OK No errors.
+ */
+extern sys_error_t
+board_port_speed_status_get(uint16 uport, int *speed)
+{
+    uint8 unit, lport;
 
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
 
+    if (speed == NULL) {
+        return SYS_ERR_PARAMETER;
+    }
 
+    *speed = SOC_PORT_SPEED_STATUS(lport);
 
+    return SYS_OK;
+}
 
+/*!
+ * \brief Get the link status
+ *
+ * This function is used to get the current autoneg status for a given port.
+ *
+ * \param [in] uport Port number.
+ * \param [out] an Boolean value for autonegotiation state.
+ *
+ * \retval SYS_OK No errors.
+ */
+extern sys_error_t
+board_port_an_status_get(uint16 uport, BOOL *an)
+{
+    uint8 unit, lport;
+    int autoneg;
 
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
 
+    if (an == NULL) {
+        return SYS_ERR_PARAMETER;
+    }
 
+    autoneg = SOC_PORT_AN_STATUS(lport);
+    *an = (autoneg) ? TRUE : FALSE;
 
+    return SYS_OK;
+}
 
+/*!
+ * \brief Get the link status
+ *
+ * This function is used to get the current duplex status for a given port.
+ *
+ * \param [in] uport Port number.
+ * \param [out] duplex Duplex mode.
+ *
+ * \retval SYS_OK No errors.
+ */
+extern sys_error_t
+board_port_duplex_status_get(uint16 uport, port_duplex_t *duplex)
+{
+    uint8 unit, lport;
+    int dp;
 
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
 
+    if (duplex == NULL) {
+        return SYS_ERR_PARAMETER;
+    }
 
+    dp = SOC_PORT_DUPLEX_STATUS(lport);
+    if (dp == PCM_PORT_DUPLEX_HALF) {
+        *duplex = PORT_DUPLEX_HALF;
+    } else {
+        *duplex = PORT_DUPLEX_FULL;
+    }
 
+    return SYS_OK;
+}
 
-
-
-
-
-
-#if defined(CFG_SWITCH_SNAKETEST_INCLUDED) && defined(CFG_SWITCH_VLAN_INCLUDED)
+#if defined(CFG_SWITCH_VLAN_INCLUDED)
+/*! For internal use only. */
+#ifdef CFG_SWITCH_SNAKETEST_INCLUDED
 sys_error_t
 board_snaketest_trap_to_cpu(uint16 vlanid, uint8 *uplist) {
     pbmp_t      lpbmp, tag_lpbmp;
@@ -3591,7 +3843,32 @@ board_snaketest_trap_to_cpu(uint16 vlanid, uint8 *uplist) {
 
     return bcm5607x_qvlan_port_set(0, vlanid, lpbmp, tag_lpbmp);
 }
-#endif /* CFG_SWITCH_SNAKETEST_INCLUDED && CFG_SWITCH_VLAN_INCLUDED */
+#endif
+sys_error_t
+board_qvlan_add_cpu(uint16 vlanid, int tagged) {
+    pbmp_t      lpbmp, tag_lpbmp;
+
+    bcm5607x_qvlan_port_get(0, vlanid, &lpbmp, &tag_lpbmp);
+
+    PBMP_PORT_ADD(lpbmp, 0);
+    if (tagged) {
+        PBMP_PORT_ADD(tag_lpbmp, 0);
+    }
+
+    return bcm5607x_qvlan_port_set(0, vlanid, lpbmp, tag_lpbmp);
+}
+sys_error_t
+board_qvlan_remove_cpu(uint16 vlanid) {
+    pbmp_t      lpbmp, tag_lpbmp;
+
+    bcm5607x_qvlan_port_get(0, vlanid, &lpbmp, &tag_lpbmp);
+
+    PBMP_PORT_REMOVE(lpbmp, 0);
+    PBMP_PORT_REMOVE(tag_lpbmp, 0);
+
+    return bcm5607x_qvlan_port_set(0, vlanid, lpbmp, tag_lpbmp);
+}
+#endif /* CFG_SWITCH_VLAN_INCLUDED */
 
 #ifdef CFG_RESET_BUTTON_INCLUDED
 uint8 sw_simulate_press_reset_button_duration = 0;
@@ -4109,168 +4386,9 @@ board_l2_addr_get_last(board_l2_addr_t *l2addr, uint16 *index)
 }
 #endif /* CFG_SWITCH_L2_ADDR_INCLUDED */
 
-
-/* Access to shadowed registers at offset 0x1c */
-#define REG_1C_SEL(_s)                  ((_s) << 10)
-#define REG_1C_WR(_s,_v)                (REG_1C_SEL(_s) | (_v) | 0x8000)
-
-/* Access expansion registers at offset 0x15 */
-#define MII_EXP_MAP_REG(_r)             ((_r) | 0x0f00)
-#define MII_EXP_UNMAP                   (0)
-
-/*
- * Non-standard MII Registers
- */
-#define MII_ECR_REG             0x10 /* MII Extended Control Register */
-#define MII_EXP_REG             0x15 /* MII Expansion registers */
-#define MII_EXP_SEL             0x17 /* MII Expansion register select */
-#define MII_TEST1_REG           0x1e /* MII Test Register 1 */
-#define RDB_LED_MATRIX          0x1f /* LED matrix mode */
-
-BOOL
-board_phy_led_mode_set(uint8 lport, int mode) {
-
-    uint8 unit=0;
-    uint8 phy_led1_mode=0x3;
-    uint8 phy_led2_mode=0xA;
-    uint8 phy_led3_mode=0xE;
-    uint8 phy_led4_mode=0xE;
-    uint16 phy_led_select=0x180;
-    uint16 phy_led_control=0x8;
-    uint32 val;
-#ifdef CFG_LED_MICROCODE_INCLUDED
-    uint8  led_option = 0;
-#endif
-
-#ifdef CFG_LED_MICROCODE_INCLUDED
-    switch (mode) {
-        case BOARD_PHY_LED_LOOP_FOUND:
-             bcm5607x_ledup_mode_set(0, lport, 0, LED_MODE_BLINK);
-             bcm5607x_ledup_mode_set(0, lport, 1, LED_MODE_BLINK);
-        break;
-        case BOARD_PHY_LED_NORMAL:
-        default:
-            sal_config_uint8_get(SAL_CONFIG_LED_OPTION, &led_option);
-            if (led_option == 1) {
-                bcm5607x_ledup_mode_set(0, lport, 0, LED_MODE_TXRX);
-                bcm5607x_ledup_mode_set(0, lport, 1, LED_MODE_LINK);
-            } else {
-                bcm5607x_ledup_mode_set(0, lport, 0, LED_MODE_LINK);
-                bcm5607x_ledup_mode_set(0, lport, 1, LED_MODE_TXRX);
-            }
-        break;
-
-    }
-#endif
-    if ((pcm_phy_driver_name_get(unit, lport, 0)!=NULL) &&
-        (sal_strstr(pcm_phy_driver_name_get(unit, lport, 0), "54292")==NULL) &&
-        (sal_strstr(pcm_phy_driver_name_get(unit, lport, 0), "54290")==NULL))
-    {
-        return SYS_OK;
-    }
-
-    sal_config_uint8_get(SAL_CONFIG_PHY_LED1_MODE, &phy_led1_mode);
-    sal_config_uint8_get(SAL_CONFIG_PHY_LED2_MODE, &phy_led2_mode);
-    sal_config_uint8_get(SAL_CONFIG_PHY_LED3_MODE, &phy_led3_mode);
-    sal_config_uint8_get(SAL_CONFIG_PHY_LED4_MODE, &phy_led4_mode);
-    sal_config_uint16_get(SAL_CONFIG_PHY_LED_SELECT, &phy_led_select);
-    sal_config_uint16_get(SAL_CONFIG_PHY_LED_CTRL, &phy_led_control);
-
-    switch (mode) {
-        case BOARD_PHY_LED_LOOP_FOUND:
-                /* Set bicolor selector 0 and 1 as Blink LED (0xA) */
-                /* extering RDB mode */
-                pcm_phy_reg_set(unit, lport, 0, MII_EXP_SEL, 0x0F7E);
-                pcm_phy_reg_set(unit, lport, 0, MII_EXP_REG, 0x0);
-
-                /*To read, select RDB offset COPPER_LED_SELECTOR_1(RDB 0x1D) */
-                pcm_phy_reg_set(unit, lport, 0, 0x1E, 0x1D);
-                pcm_phy_reg_set(unit, lport, 0, 0x1F, (0x8000 | (0xA << 4)) | (0xA & 0xf) );
-
-                /* To write, select RDB offset MULTICOLOR_LED_SELECTOR(RDB 0x34) */
-                pcm_phy_reg_set(unit, lport, 0, 0x1E, 0x34);
-                pcm_phy_reg_set(unit, lport, 0, 0x1F, 0x1AA | (1 << 10));
-
-                /* To write, select RDB offset MULTICOLOR_LED_PROGRAMMABLE_BLINK_CONTROL(RDB 0x36) */
-                pcm_phy_reg_set(unit, lport, 0, 0x1E, 0x36);
-                pcm_phy_reg_set(unit, lport, 0, 0x1F, 0x1| (1 << 5));
-
-                /* exit RDB mode */
-                pcm_phy_reg_set(unit, lport, 0, 0x1E, 0x0087);
-                pcm_phy_reg_set(unit, lport, 0, 0x1F, 0x0000);
-        break;
-        case BOARD_PHY_LED_NORMAL:
-        default:
-                /* extering RDB mode */
-                pcm_phy_reg_set(unit, lport, 0, MII_EXP_SEL, 0x0F7E);
-                pcm_phy_reg_set(unit, lport, 0, MII_EXP_REG, 0x0);
-
-                /* To write , select RDB offset COPPER_LED_SELECTOR_1(RDB 0x1D) */
-                pcm_phy_reg_set(unit, lport, 0, 0x1E, 0x1D);
-                val = (1<<15) | (0xD<<10) |
-                    (phy_led1_mode & 0xf) | ((phy_led2_mode & 0xf) << 4) ;
-                pcm_phy_reg_set(unit, lport, 0, 0x1F, val);
-
-                /* To write , select RDB offset COPPER_LED_SELECTOR_1(RDB 0x1D) */
-                pcm_phy_reg_set(unit, lport, 0, 0x1E, 0x1E);
-                val = (1<<15) | (0xE<<10) |
-                    (phy_led3_mode & 0xf) | ((phy_led4_mode & 0xf) << 4) ;
-                pcm_phy_reg_set(unit, lport, 0, 0x1F, val);
-
-                /* To write , select RDB offset COPPER_LED_CONTROL(RDB 0x19) */
-                pcm_phy_reg_set(unit, lport, 0, 0x1E, 0x19);
-                val = (1<<15) | (0x9<<10) |
-                    phy_led_control;
-                pcm_phy_reg_set(unit, lport, 0, 0x1F, val);
-
-                /* To write , select RDB offset MULTICOLOR_LED_SELECTOR(RDB 0x34) */
-                pcm_phy_reg_set(unit, lport, 0, 0x1E, 0x34);
-                pcm_phy_reg_set(unit, lport, 0, 0x1F, phy_led_select);
-
-                /* exit RDB mode */
-                pcm_phy_reg_set(unit, lport, 0, 0x1E, 0x0087);
-                pcm_phy_reg_set(unit, lport, 0, 0x1F, 0x0000);
-        break;
-    }
-
-
-#ifdef BSL_LS_SOC_LOOPDETECT_LED_READBACK
-        /* extering RDB mode */
-        pcm_phy_reg_set(unit, lport, 0, MII_EXP_SEL, 0x0F7E);
-        pcm_phy_reg_set(unit, lport, 0, MII_EXP_REG, 0x0);
-
-        //To read , select RDB offset COPPER_LED_SELECTOR_1(RDB 0x1D)
-        pcm_phy_reg_set(unit, lport, 0, 0x1E, 0x1D);
-        pcm_phy_reg_get(unit, lport, 0, 0x1F, &val);
-        LOG_LOOP_LED(BSL_LS_SOC_COMMON,("%s..:COPPER_LED_SELECTOR_1=0x%08x\n", __func__, val));
-
-        //To read , select RDB offset COPPER_LED_CONTROL(RDB 0x19)
-        pcm_phy_reg_set(unit, lport, 0, 0x1E, 0x19);
-        pcm_phy_reg_get(unit, lport, 0, 0x1F, &val);
-        LOG_LOOP_LED(BSL_LS_SOC_COMMON,("%s..:COPPER_LED_CONTROL=0x%08x\n", __func__, val));
-
-        //To read , select RDB offset MULTICOLOR_LED_SELECTOR(RDB 0x34)
-        pcm_phy_reg_set(unit, lport, 0, 0x1E, 0x34);
-        pcm_phy_reg_get(unit, lport, 0, 0x1F, &val);
-        LOG_LOOP_LED(BSL_LS_SOC_COMMON,("%s..:MULTICOLOR_LED_SELECTOR=0x%08x\n", __func__, val));
-
-        //To read , select RDB offset MULTICOLOR_LED_PROGRAMMABLE_BLINK_CONTROL(RDB 0x36)
-        pcm_phy_reg_set(unit, lport, 0, 0x1E, 0x36);
-        pcm_phy_reg_get(unit, lport, 0, 0x1F, &val);
-        LOG_LOOP_LED(BSL_LS_SOC_COMMON,("%s..:MULTICOLOR_LED_PROGRAMMABLE_BLINK_CONTROL=0x%08x\n", __func__, val));
-
-        //exit RDB mode
-        pcm_phy_reg_set(unit, lport, 0, 0x1E, 0x0087);
-        pcm_phy_reg_set(unit, lport, 0, 0x1F, 0x0000);
-#endif
-
-    return SYS_OK;
-}
-
 #ifdef CFG_SWITCH_SYNCE_INCLUDED
 /*!
  * \brief Get syncE clock source control option.
- * \param [in] unit Unit number.
  * \param [in] clk_src_config Clock source config.
  * \param [in] control SyncE source.
  *  \li 0 = bcmTimeSynceClockSourceControlSquelch.
@@ -4281,18 +4399,17 @@ board_phy_led_mode_set(uint8 lport, int mode) {
  */
 
 sys_error_t
-board_time_synce_clock_source_control_get(uint8 unit,
+board_time_synce_clock_source_control_get(
                           bcm_time_synce_clock_source_config_t *clk_src_config,
                           bcm_time_synce_clock_source_control_t control,
                           int *value)
 {
-    return bcm5607x_time_synce_clock_source_control_get(unit, clk_src_config,
+    return bcm5607x_time_synce_clock_source_control_get(0, clk_src_config,
                                                         control, value);
 }
 
 /*!
  * \brief Set syncE clock source squelch option.
- * \param [in] unit Unit number.
  * \param [in] clk_src_config Clock source config.
  * \param [in] control SyncE source.
  *  \li 0 = bcmTimeSynceClockSourceControlSquelch.
@@ -4303,16 +4420,158 @@ board_time_synce_clock_source_control_get(uint8 unit,
  */
 
 sys_error_t
-board_time_synce_clock_source_control_set(uint8 unit,
+board_time_synce_clock_source_control_set(
                              bcm_time_synce_clock_source_config_t *clk_src_config,
                              bcm_time_synce_clock_source_control_t control,
                              int value)
 {
-    return bcm5607x_time_synce_clock_source_control_set(unit, clk_src_config,
+    return bcm5607x_time_synce_clock_source_control_set(0, clk_src_config,
                              control, value);
 }
 
 #endif /* CFG_SWITCH_SYNCE_INCLUDED */
+
+#ifdef CFG_SWITCH_TIMESYNC_INCLUDED
+/*!
+ * \brief Set timesync configurations for the port.
+ *
+ * \param [in] uport Port number.
+ * \param [in] config_count Count of timesync configurations.
+ * \param [in] config_array Pointer to timesync configurations.
+ *
+ * \retval SYS_OK No errors.
+ */
+extern sys_error_t
+board_port_timesync_config_set(uint16 uport,
+                            int config_count, bcm_port_timesync_config_t *config_array)
+{
+    uint8 unit, lport;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    return bcm5607x_port_timesync_config_set(unit, lport, config_count, config_array);
+}
+
+/*!
+ * \brief Get timesync configurations for the port.
+ *
+ * \param [in] uport Port number.
+ * \param [in] array_size Required Count of timesync configurations.
+ * \param [in/out] config_array Pointer to timesync configurations.
+ * \param [out] array_count Pointer to timesync configuration array count.
+ *
+ * \retval SYS_OK No errors.
+ */
+extern sys_error_t
+board_port_timesync_config_get(uint16 uport, int array_size,
+                                bcm_port_timesync_config_t *config_array,
+                                int *array_count)
+{
+    uint8 unit, lport;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    return bcm5607x_port_timesync_config_get(unit, lport, array_size, config_array, array_count);
+}
+
+/*!
+ * \brief Set PHY/PCS timesync configurations for the port.
+ *
+ * \param [in] uport Port number.
+ * \param [in] en value for enable/disable.
+ *    \li TRUE = Enable PHY/PCS timesync.
+ *    \li FALSE = Disable PHY/PCS timesync.
+ * \retval SYS_OK No errors.
+ */
+extern sys_error_t
+board_port_phy_timesync_enable_set(uint16 uport, int en)
+{
+    uint8 unit, lport;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    return bcm5607x_port_phy_timesync_enable_set(unit, lport, en);
+}
+
+/*!
+ * \brief Get PHY/PCS timesync configurations for the port.
+ *
+ * \param [in] uport Port number.
+ * \param [out] en value for enable/disable.
+ *
+ * \retval SYS_OK No errors.
+ */
+extern sys_error_t
+board_port_phy_timesync_enable_get(uint16 uport, int *en)
+{
+    uint8 unit, lport;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    return bcm5607x_port_phy_timesync_enable_get(unit, lport, en);
+}
+
+/*!
+ * \brief Set timesync PHY/PCS features for the port.
+ *
+ * \param [in] uport Port number.
+ * \param [in] type Port feature enumerator.
+ *    \li bcmPortControlPhyTimesyncTimestampOffset
+ *    \li bcmPortControlPhyTimesyncTimestampAdjust
+ *
+ * \param [in] value Value to configure for the feature.
+ *
+ * \retval SYS_OK No errors.
+ */
+extern sys_error_t
+board_port_control_phy_timesync_set(uint16 uport,
+                            bcm_port_control_phy_timesync_t type,
+                            uint64 value)
+{
+    uint8 unit, lport;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    return bcm5607x_port_control_phy_timesync_set(unit, lport, type, value);
+}
+
+/*!
+ * \brief Get timesync PHY/PCS features for the port.
+ *
+ * \param [in] uport Port number.
+ * \param [in] type Port feature enumerator.
+ * \param [out] value Value configured for the feature.
+ *
+ * \retval SYS_OK No errors.
+ */
+extern sys_error_t
+board_port_control_phy_timesync_get(uint16 uport,
+                            bcm_port_control_phy_timesync_t type,
+                            uint64 *value)
+{
+    /* Not implemented in PHYMOD */
+    return SYS_ERR_UNAVAIL;
+}
+
+/*!
+ * \brief Get 1588 packet's transmit information form the port.
+ *
+ * \param [in] uport Port number.
+ * \param [in/out] tx_info Pointer to structure to get timesync tx informatio.
+ *
+ * \retval SYS_OK No errors.
+ */
+extern sys_error_t
+board_port_timesync_tx_info_get(uint16 uport,
+                            bcm_port_timesync_tx_info_t *tx_info)
+{
+    uint8 unit, lport;
+
+    SOC_IF_ERROR_RETURN(board_uport_to_lport(uport, &unit, &lport));
+
+    return bcm5607x_port_timesync_tx_info_get(unit, lport, tx_info);
+}
+#endif /* CFG_SWITCH_TIMESYNC_INCLUDED */
 
 /*!
  * \brief Get chip devID and revID by unit.

@@ -1,7 +1,7 @@
 # $Id: Makefile,v 1.13 Broadcom SDK $
 # This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
 # 
-# Copyright 2007-2020 Broadcom Inc. All rights reserved.
+# Copyright 2007-2021 Broadcom Inc. All rights reserved.
 
 QUIET ?= @
 include ${BUILD_DIR}/src/tools.mk
@@ -56,7 +56,6 @@ CFLAGS += -DSOC_MAX_NUM_PORTS=$(SOC_MAX_NUM_PORTS) -DSOC_MAX_NUM_BLKS=$(SOC_MAX_
 CFLAGS += -DSOC_MAX_NUM_SWITCH_DEVICES=1
 CFLAGS += -DSOC_MAX_NUM_ETHER_DEVICES=0
 CFLAGS += -D_PHY_CONFIG_H $(foreach phy,$(INT_PHY_LIST), -DINCLUDE_$(phy))
-CFLAGS += $(foreach phy,$(PHYMOD_LIST), -DPHYMOD_$(phy)_SUPPORT)
 CFLAGS += $(foreach chipname, $(filter-out $(CHIP_NAME), $(ESW_CHIP_NAMES)), -DNO_$(chipname))
 ifneq (,(findstring 54880,$(EXT_PHY_LIST)))
 CFLAGS += -DINCLUDE_LONGREACH
@@ -92,11 +91,7 @@ endif
 ifeq (1,$(PHYMOD_SUPPORT))
 BUILD_PHYMOD = 1
 CFLAGS += -I${SDK_PATCH_DIR}/libs/phymod/include -I${SDK_DIR}/libs/phymod/include
-CFLAGS += -DPHYMOD_SUPPORT
-CFLAGS += -DPHYMOD_TIER1_SUPPORT
-CFLAGS += -DPHYMOD_INCLUDE_CUSTOM_CONFIG
-CFLAGS += -DPHYMOD_CONFIG_INCLUDE_CHIP_SYMBOLS=1
-CFLAGS += -DPHYMOD_CONFIG_INCLUDE_FIELD_INFO=0
+CFLAGS += $(PHYMOD_CFLAGS)
 CFLAGS += -DPHY_NUM_SIMS=0
 ifeq (1,$(PHYMOD_DIAG))
 #CFLAGS += -DPHYMOD_DIAG
@@ -124,7 +119,8 @@ OBJ_OUTPUT_DIR = ${SDK_BUILD_DIR}
 SRC_TOP_DIR = ${SDK_PATCH_DIR}
 CURRENT_DIR = $(shell pwd)
 
-LIBS =  pcmphyctrl_chip pcmphyctrl_intphy pcmphyctrl_extphy pcmphyctrl_phymod pcmphyctrl_common pcmphyctrl_physelect
+LIBS = pcmphyctrl_chip pcmphyctrl_intphy pcmphyctrl_extphy pcmphyctrl_phymod
+LIBS += pcmphyctrl_common pcmphyctrl_physelect
 
 export SDK_RELEASE_DIR SDK_RELEASE_VERSION EXT_PHY_ALL RELEASE_BUILD
 
@@ -147,4 +143,4 @@ clean:
 	find ${SDK_BUILD_DIR} -name *.d | xargs rm -Rf
 	find ${SDK_BUILD_DIR} -name *.gcno | xargs rm -Rf
 	find ${SDK_BUILD_DIR} -name *.gcda | xargs rm -Rf
-	rm -f ${ALLLIBS}
+	rm -f $(BUILD_DIR)/lib/libpcmphyctrl_*.a

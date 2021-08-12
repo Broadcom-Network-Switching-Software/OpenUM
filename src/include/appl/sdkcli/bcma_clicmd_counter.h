@@ -5,7 +5,7 @@
 /*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef BCMA_CLICMD_COUNTER_H
@@ -15,10 +15,13 @@
 
 /*! Brief description for CLI command. */
 #define BCMA_CLICMD_COUNTER_DESC \
-    "Show non-zero counter."
+    "Show and clear non-zero counter."
+/*! Syntax for CLI counter command. */
+#define BCMA_CLICMD_COUNTER_SYNOP \
+    "[clear]"
 
 /*!
- * \brief CLI command implementation.
+ * \brief CLI 'counter' command.
  *
  * \param [in] cli CLI object
  * \param [in] args Argument list

@@ -3,10 +3,13 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #include <system.h>
+
+/* TCAM maximum size in words. */
+#define TCAM_WSIZE_MAX              (16)
 
 /*! For switch schan channel in interrupt context only. */
 uint32 bcm5607x_schan_ch = BCM5607X_SCHAN_CH_DEFAULT;
@@ -34,14 +37,17 @@ bcm5607x_sw_op(uint8 unit,
         sal_printf("wrong block id =%d addr=%x\n", block_id, addr);
         return SYS_ERR;
     }
-    SCHAN_CLR(schan);
 
+    /* Fill-out SCHAN message header. */
+    SCHAN_CLR(schan);
     SCHAN_OP_CODEf_SET(schan, op);
     SCHAN_DEST_BLOCKf_SET(schan, block_id);
     SCHAN_DATA_LENf_SET(schan, (len*4));
 
-    SCHAN_LOCK(unit);
+    /* SCHAN shared lock. */
+    SCHAN_LOCK(unit, ch);
 
+    /* Fill out SCHAN message header. */
     baseaddr = CMIC_COMMON_POOL_SCHAN_CH0_MESSAGE(0) + (ch * 0x100);
     val32 = SCHAN_GET(schan);
     bcm5607x_write32(unit, baseaddr, val32);
@@ -117,7 +123,8 @@ bcm5607x_sw_op(uint8 unit,
     if (op == SC_OP_TBL_LOOKUP_CMD) {
         bcm5607x_read32(unit, baseaddr, &val32);
         if (val32 & 0x1) {
-            SCHAN_UNLOCK(unit);
+            /* SCHAN shared unlock. */
+            SCHAN_UNLOCK(unit, ch);
             return SYS_ERR_NOT_FOUND;
         }
     }
@@ -129,7 +136,8 @@ bcm5607x_sw_op(uint8 unit,
         }
     }
 
-    SCHAN_UNLOCK(unit);
+    /* SCHAN shared unlock. */
+    SCHAN_UNLOCK(unit, ch);
 
     return SYS_OK;
 }
@@ -147,12 +155,16 @@ bcm5607x_phy_reg_set(uint8 unit, uint8 port,
     return SYS_OK;
 }
 
+sys_error_t bcm5607x_read32(uint8 unit, uint32 addr, uint32 *val)
+                                __attribute__((section(".2ram")));
 sys_error_t bcm5607x_read32(uint8 unit, uint32 addr, uint32 *val) {
 
     *val = SYS_REG_READ32(addr);
     return SYS_OK;
 }
 
+sys_error_t bcm5607x_write32(uint8 unit, uint32 addr, uint32 val)
+                                __attribute__((section(".2ram")));
 sys_error_t bcm5607x_write32(uint8 unit, uint32 addr, uint32 val) {
 
            SYS_REG_WRITE32(addr, val);
@@ -217,9 +229,6 @@ bcm5607x_mem_set(uint8 unit,
     return bcm5607x_sw_op(unit, SC_OP_WR_MEM_CMD, block_id, addr, buf, len);
 }
 
-static uint32 *bcm5607x_tcam_buffer = NULL;
-static int bcm5607x_tcam_maxlen = 0;
-
 sys_error_t
 bcm5607x_tcam_mem_set(uint8 unit,
                  uint8 block_id,
@@ -234,17 +243,13 @@ bcm5607x_tcam_mem_set(uint8 unit,
 
      uint32 step, key, mask, encoded_key, encoded_mask;
      uint32 xor_value = 0xffffffff;
+     uint32 tcam_buffer[TCAM_WSIZE_MAX];
 
-     if (bcm5607x_tcam_maxlen < len || bcm5607x_tcam_buffer == NULL) {
-          if (bcm5607x_tcam_buffer) {
-             sal_free(bcm5607x_tcam_buffer);
-             bcm5607x_tcam_buffer = NULL;
-         }
-         bcm5607x_tcam_buffer = sal_malloc((len * 4));
-         bcm5607x_tcam_maxlen = len;
+     if (len >= TCAM_WSIZE_MAX) {
+         return SYS_ERR_PARAMETER;
      }
 
-     sal_memcpy(bcm5607x_tcam_buffer, buf, (len*4));
+     sal_memcpy(tcam_buffer, buf, (len*4));
 
      while(key_len != 0) {
 
@@ -260,14 +265,14 @@ bcm5607x_tcam_mem_set(uint8 unit,
            encoded_key = key & mask;
            encoded_mask = (~mask | key) ^ xor_value;
 
-           field32_set(bcm5607x_tcam_buffer, key_sp, key_sp + step - 1, encoded_key);
-           field32_set(bcm5607x_tcam_buffer, mask_sp, mask_sp + step - 1, encoded_mask);
+           field32_set(tcam_buffer, key_sp, key_sp + step - 1, encoded_key);
+           field32_set(tcam_buffer, mask_sp, mask_sp + step - 1, encoded_mask);
 
            key_len -= step;
            key_sp += step;
            mask_sp += step;
      }
-     return bcm5607x_mem_set(unit, block_id, addr, bcm5607x_tcam_buffer, len);
+     return bcm5607x_mem_set(unit, block_id, addr, tcam_buffer, len);
 
 
 }
@@ -284,25 +289,21 @@ bcm5607x_tcam_mem_get(uint8 unit,
                  )
 {
     sys_error_t rv;
-
     uint32 step, key, mask, encoded_key, encoded_mask;
+    uint32 tcam_buffer[TCAM_WSIZE_MAX];
 
-    if (bcm5607x_tcam_maxlen < len || bcm5607x_tcam_buffer == NULL) {
-        if (bcm5607x_tcam_buffer) {
-            sal_free(bcm5607x_tcam_buffer);
-            bcm5607x_tcam_buffer = NULL;
-        }
-        bcm5607x_tcam_buffer = sal_malloc((len * 4));
-        bcm5607x_tcam_maxlen = len;
+    if (len >= TCAM_WSIZE_MAX) {
+        return SYS_ERR_PARAMETER;
     }
 
-    rv = bcm5607x_mem_get(unit, block_id, addr, bcm5607x_tcam_buffer, len);
+    sal_memset(tcam_buffer, 0, sizeof(tcam_buffer));
+    rv = bcm5607x_mem_get(unit, block_id, addr, tcam_buffer, len);
 
     if (rv != SYS_OK) {
         return rv;
     }
 
-    sal_memcpy(buf, bcm5607x_tcam_buffer, (len*4));
+    sal_memcpy(buf, tcam_buffer, (len*4));
 
     while(key_len != 0) {
 
@@ -311,8 +312,8 @@ bcm5607x_tcam_mem_get(uint8 unit,
           if (step > key_len) {
               step = key_len;
           }
-          encoded_key =  field32_get(bcm5607x_tcam_buffer, key_sp, key_sp + step - 1);
-          encoded_mask = field32_get(bcm5607x_tcam_buffer, mask_sp, mask_sp + step - 1);
+          encoded_key =  field32_get(tcam_buffer, key_sp, key_sp + step - 1);
+          encoded_mask = field32_get(tcam_buffer, mask_sp, mask_sp + step - 1);
 
           key = encoded_key;
           mask = encoded_key | encoded_mask;

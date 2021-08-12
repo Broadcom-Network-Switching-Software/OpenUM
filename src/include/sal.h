@@ -3,12 +3,14 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef _SAL_H_
 #define _SAL_H_
 
+/* CPU Timer Ticks per micro second */
+#define SAL_TICKS_PER_US    ((BOARD_CPU_CLOCK)/1000000)
 
 /* Debugging */
 #if CFG_DEBUGGING_ENABLED
@@ -38,22 +40,43 @@ extern void sal_dma_free(void *p) REENTRANT;
 #define sal_dma_free sal_free
 #endif /* __ARM__ */
 
-/* Timer - Get current ticks */
+/* Timer - Get current CPU ticks */
+extern tick_t sal_get_cpu_ticks(void) REENTRANT;
+
+/* Timer - Get current sys_ticks(ms) */
 extern tick_t sal_get_ticks(void) REENTRANT;
 
 /* Timer - Get current seconds */
 extern uint32 sal_get_seconds(void) REENTRANT;
 
-/* Timer - Microseconds per tick */
+/* Timer - Microseconds per sys_ticks */
 extern uint32 sal_get_us_per_tick(void) REENTRANT;
 
-/* Timer - macro to convert micro seconds to system ticks */
+/* Timer - macro to convert micro seconds to sys_ticks(ms)
+ * sys_ticks are maintained by UM with ms granularity approximately
+ */
 #define SAL_USEC_TO_TICKS(usec) \
     ((tick_t)(((usec) + sal_get_us_per_tick() - 1) / sal_get_us_per_tick()))
 
-/* Timer - macro to check time expiration (in ticks) */
+/* Timer - macro to convert micro seconds to CPU Timer ticks
+ * CPU Timer ticks at the speed of CPU clocks
+ */
+#define SAL_USEC_TO_CPU_TICKS(usec) \
+    ((tick_t)((uint64)SAL_TICKS_PER_US * (usec)))
+
+/* Timer - macro to check time expiration (in sys_ticks) */
 #define SAL_TIME_EXPIRED(start, interval) \
     (sal_get_ticks() - (start) >= (interval))
+
+#if defined(CFG_PCM_SUPPORT_INCLUDED) || defined(CFG_RXTX_SUPPORT_ENABLED)
+/* Timer - macro to check time expiration (in u-seconds) */
+#define SAL_TIME_EXPIRED_IN_US(start, interval) \
+    (sal_time_usecs() - (start) >= (interval))
+#endif
+
+/* Timer - macro to check time expiration (in CPU Timer ticks) */
+#define SAL_TIME_EXPIRED_IN_CPU_TICK(start, interval) \
+    (sal_get_cpu_ticks() - (start) >= (interval))
 
 /* Timer - macro to check time expiration (in seconds) */
 #define SAL_TIME_EXPIRED_IN_SECOND(start, interval) \
@@ -80,11 +103,17 @@ extern BOOL sal_char_avail(void) REENTRANT;
 /* Console - get input character (may block if no char available) */
 extern char sal_getchar(void) REENTRANT;
 
+/* Console - get input character (return -1 immediately if no char available) */
+extern int sal_getchar_nonblock(char *c) REENTRANT;
+
 /* Console - return the last inputed character */
 extern char sal_get_last_char(void) REENTRANT;
 
 /* Console - output one character */
 extern char sal_putchar(char c) REENTRANT;
+
+/* Console output function */
+extern int um_console_print(const char *str);
 
 /* Checksum calculation */
 extern uint16 sal_checksum(uint16 sum, const void *start, uint16 len);
@@ -99,6 +128,7 @@ extern int sal_strcasecmp(const char *s1, const char *s2);
 extern int sal_strncasecmp(const char *dest, const char *src, size_t cnt);
 extern size_t sal_strcspn(const char *s1, const char *s2);
 extern char *sal_strstr(const char *s1, const char *s2);
+extern char *sal_strcasestr(const char *s1, const char *s2);
 
 #define isdigit(d)      (((d) >= '0') && ((d) <= '9'))
 #define isupper(c)      (((c) >= 'A') && ((c) <= 'Z'))
@@ -117,9 +147,6 @@ extern char *sal_strstr(const char *s1, const char *s2);
 #define sal_isalpha(_c_) isalpha(_c_)
 #define sal_isdigit(_c_) isdigit(_c_)
 #define sal_isxdigit(_c_) isxdigit(_c_)
-
-#define sal_strcasecmp strcasecmp
-#define sal_strncasecmp strncasecmp
 
 extern void
 sal_qsort(void *base, int count, int size, int (*compar)(const void *, const void *));

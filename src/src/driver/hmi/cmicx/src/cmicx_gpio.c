@@ -5,7 +5,7 @@
 /*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #include <system.h>
@@ -16,10 +16,10 @@
 /*******************************************************************************
  * Local definitions
  */
-#define GPIO_LOCK(_u)
-#define GPIO_UNLOCK(_u)
-#define INTR_MASK_LOCK(_u)
-#define INTR_MASK_UNLOCK(_u)
+#define GPIO_LOCK(_s)              sys_intr_handling_save_disable(_s)
+#define GPIO_UNLOCK(_s)            sys_intr_handling_restore_enable(_s)
+#define INTR_MASK_LOCK(_s)         sys_intr_handling_save_disable(_s)
+#define INTR_MASK_UNLOCK(_s)       sys_intr_handling_restore_enable(_s)
 
 #define CMICX_GPIO_NUM               32
 #define IPROC_IRQ_GPIO_INTR          44
@@ -104,13 +104,14 @@ cmicx_gpio_mode_set(int unit, uint32 gpio, board_gpio_mode_t mode)
     int ioerr = 0;
     uint32 en;
     GPIO_OUT_ENr_t out_en;
+    uint32 status;
 
     /* Sanity checks */
     if (gpio >= CMICX_GPIO_NUM) {
         return SYS_ERR_PARAMETER;
     }
 
-    GPIO_LOCK(unit);
+    GPIO_LOCK(&status);
 
     ioerr += READ_GPIO_OUT_ENr(unit, out_en);
     en = GPIO_OUT_ENr_OUT_ENABLEf_GET(out_en);
@@ -122,7 +123,7 @@ cmicx_gpio_mode_set(int unit, uint32 gpio, board_gpio_mode_t mode)
     GPIO_OUT_ENr_OUT_ENABLEf_SET(out_en, en);
     ioerr += WRITE_GPIO_OUT_ENr(unit, out_en);
 
-    GPIO_UNLOCK(unit);
+    GPIO_UNLOCK(&status);
 
     return (ioerr == 0) ? SYS_OK : SYS_ERR;
 }
@@ -133,13 +134,14 @@ cmicx_gpio_value_set(int unit, uint32 gpio, bool val)
     int ioerr = 0;
     uint32 data;
     GPIO_DATA_OUTr_t data_out;
+    uint32 status;
 
     /* Sanity checks */
     if (gpio >= CMICX_GPIO_NUM) {
         return SYS_ERR_PARAMETER;
     }
 
-    GPIO_LOCK(unit);
+    GPIO_LOCK(&status);
 
     ioerr += READ_GPIO_DATA_OUTr(unit, data_out);
     data = GPIO_DATA_OUTr_DATA_OUTf_GET(data_out);
@@ -147,7 +149,7 @@ cmicx_gpio_value_set(int unit, uint32 gpio, bool val)
     GPIO_DATA_OUTr_DATA_OUTf_SET(data_out, data);
     ioerr += WRITE_GPIO_DATA_OUTr(unit, data_out);
 
-    GPIO_UNLOCK(unit);
+    GPIO_UNLOCK(&status);
 
     return (ioerr == 0) ? SYS_OK : SYS_ERR;
 }
@@ -203,13 +205,14 @@ cmicx_gpio_intr_enable_set(int unit, uint32 gpio, bool enable)
     uint32 mask;
     GPIO_INT_MSKr_t intr_mask;
     int rv = SYS_OK;
+    uint32 status;
 
     /* Sanity checks */
     if (gpio >= CMICX_GPIO_NUM) {
         return SYS_ERR_PARAMETER;
     }
 
-    INTR_MASK_LOCK(unit);
+    INTR_MASK_LOCK(&status);
 
     if (enable) {
         READ_GPIO_INT_MSKr(unit, intr_mask);
@@ -232,7 +235,7 @@ cmicx_gpio_intr_enable_set(int unit, uint32 gpio, bool enable)
         }
     }
 
-    INTR_MASK_UNLOCK(unit);
+    INTR_MASK_UNLOCK(&status);
 
     return rv;
 }

@@ -5,18 +5,16 @@
 /*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef SHR_PB_FORMAT_H
 #define SHR_PB_FORMAT_H
 
 #include "system.h"
-
+#include <utils/shr/shr_types.h>
 #include <utils/shr/shr_bitop.h>
 #include <utils/shr/shr_pb.h>
-
-typedef unsigned long long       uint64_t_fixme;
 
 /*!
  * \brief Format the value in uint32_t array to print buffer.
@@ -62,7 +60,7 @@ shr_pb_format_uint32(shr_pb_t *pb, const char *prefix,
  */
 const char *
 shr_pb_format_uint64(shr_pb_t *pb, const char *prefix,
-                     const uint64_t_fixme *val, int count, uint32_t bitwidth);
+                     const uint64_t *val, int count, uint32_t bitwidth);
 
 /*!
  * \brief Format the bit array to print buffer.

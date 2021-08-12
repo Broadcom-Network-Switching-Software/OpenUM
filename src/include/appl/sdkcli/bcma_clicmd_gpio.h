@@ -5,7 +5,7 @@
 /*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef BCMA_CLICMD_GPIO_H
@@ -40,8 +40,9 @@
     "                              If no test case specified, all available\n"\
     "                              test cases will be shown.\n"\
     "                              For example,\n"\
-    "                              gpio test intr start\n"\
-    "                              gpio test intr stop"
+    "                              gpio test intr\n"\
+    "                              gpio test intr_latency\n"\
+    "                              gpio test intr_regression\n"
 
 /*! Examples for CLI command. */
 #define BCMA_CLICMD_GPIO_EXAMPLES \

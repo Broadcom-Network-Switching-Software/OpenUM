@@ -5,7 +5,7 @@
 # 
 # This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
 # 
-# Copyright 2007-2020 Broadcom Inc. All rights reserved.
+# Copyright 2007-2021 Broadcom Inc. All rights reserved.
 #
 # Add a header including checksum, file length and board to a binary file
 # 
@@ -45,11 +45,16 @@ if (@ARGV == 5) {
     exit;
 }
 
-die "Usage: ".__FILE__." <input_file> <output_file> <board_name> <maj> <min> <build>\n" unless (@ARGV == 6);
+die "Usage: ".__FILE__." <input_file> <output_file> <board_name> <maj> <min> <build> [image_id]\n" unless (@ARGV == 6 || @ARGV == 7);
 
-($in_file, $out_file, $board_name, $majver, $minver, $build) = @ARGV
-    or die "Usage: ".__FILE__." <input_file> <output_file> <board_name> <maj> <min> <build>\n";
-    
+if (@ARGV == 6) {
+    ($in_file, $out_file, $board_name, $majver, $minver, $build) = @ARGV
+        or die "Usage: ".__FILE__." <input_file> <output_file> <board_name> <maj> <min> <build>\n";
+} else {
+    ($in_file, $out_file, $board_name, $majver, $minver, $build, $image_id) = @ARGV
+        or die "Usage: ".__FILE__." <input_file> <output_file> <board_name> <maj> <min> <build> <image_id>\n";
+}
+
 #
 # Open files
 #
@@ -104,7 +109,11 @@ while($rem > 0) {
 #
 # Insert version
 #
-printf OUT_FILE "%01X%01X%01X0", $majver, $minver, $build;
+if (@ARGV == 6) {
+    printf OUT_FILE "%01X%01X%01X0", $majver, $minver, $build;
+} else {
+    printf OUT_FILE "%01X%01X%01X%01X", $majver, $minver, $build, $image_id;
+}
 
 $rem = 8;
 

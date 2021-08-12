@@ -1,7 +1,7 @@
 # $Id: um_gen_phylibs.mk,v 1.4 Broadcom SDK $
 # This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
 # 
-# Copyright 2007-2020 Broadcom Inc. All rights reserved.
+# Copyright 2007-2021 Broadcom Inc. All rights reserved.
 QUIET := @
 CHIP_NAME = BCM_56070_A0
 SOC_MAX_NUM_BLKS = 30
@@ -10,10 +10,16 @@ HEADER_SHARED_SRC := $(TOP)/include/soc/bcm5607x_drv.h
 HEADER_SHARED_DST := $(SDK_PATCH_DIR)/include/soc/drv_chip_depend.h
 
 PHYMOD_LIST = TSCE16 MERLIN16 TSCF16_GEN3 FALCON16_V1L4P1
-PHYMOD_LIST += QTCE16
 INT_PHY_LIST = XGXS_TSCE XGXS_TSCF
-#INT_PHY_LIST += SERDES_QTCE
 EXT_PHY_LIST =
+
+PHYMOD_CFLAGS += -DPHYMOD_SUPPORT
+PHYMOD_CFLAGS += -DPHYMOD_TIER1_SUPPORT
+PHYMOD_CFLAGS += -DPHYMOD_INCLUDE_CUSTOM_CONFIG
+PHYMOD_CFLAGS += -DPHYMOD_CONFIG_INCLUDE_CHIP_SYMBOLS=1
+PHYMOD_CFLAGS += -DPHYMOD_CONFIG_INCLUDE_FIELD_INFO=1
+PHYMOD_CFLAGS += $(foreach phy,$(PHYMOD_LIST), -DPHYMOD_$(phy)_SUPPORT)
+CFLAGS += $(PHYMOD_CFLAGS)
 
 PHYLIBS = pcmphyctrl_phymod
 PHYLIBS += pcmphyctrl_common
@@ -28,7 +34,7 @@ export GCC
 export RELEASE_BUILD
 export TOP BUILD_DIR SDK_PATCH_DIR SYSTEM_DIR SDK_DIR
 export CHIP_NAME SOC_MAX_NUM_BLKS
-export EXT_PHY_LIST INT_PHY_LIST PHYMOD_LIST
+export EXT_PHY_LIST INT_PHY_LIST PHYMOD_LIST PHYMOD_CFLAGS
 
 ifeq ($(RELEASE_BUILD),1)
 ifeq ($(SDK_SRC_DIR),)

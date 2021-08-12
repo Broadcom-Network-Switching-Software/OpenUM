@@ -1,9 +1,11 @@
-/*
- * $Id: mcast.h,v 1.5 Broadcom SDK $
+/*! \file mcast.h
  *
+ * Multicast board APIs.
+ */
+/*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef _BOARDAPI_MCAST_H_

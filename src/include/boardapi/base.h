@@ -1,9 +1,11 @@
-/*
- * $Id: base.h,v 1.4 Broadcom SDK $
+/*! \file base.h
  *
+ * Base board APIs.
+ */
+/*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef _BOARDAPI_BASE_H_
@@ -100,8 +102,23 @@ extern soc_switch_t *board_get_soc_by_unit(uint8 unit) REENTRANT;
  */
 extern sys_error_t board_chip_revision(uint8 unit, uint16 *dev, uint16 *rev);
 
+/*!
+ * \brief Get chip information by unit.
+ *
+ * \param [in] unit Unit number.
+ *
+ * \retval Pointer to chip information (e.g., bcm5357x_chip_info).
+ */
+extern chip_info_t *board_get_chipinfo_by_unit(uint8 unit) REENTRANT;
+
 #ifndef CFG_PCM_SUPPORT_INCLUDED
-/* Get phy driver by user port */
+/*!
+ * \brief Get phy driver by user port.
+ *
+ * \param [in] uport User port.
+ *
+ * \retval Pointer to phy driver.
+ */
 extern phy_driver_t *board_get_phy_drv(uint16 uport) REENTRANT;
 #endif
 #endif /* _BOARDAPI_BASE_H_ */

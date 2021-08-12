@@ -5,7 +5,7 @@
 /*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #include "system.h"
@@ -41,11 +41,6 @@
 #define MODE_OPTIONS \
     "in|out"
 
-/* Test list */
-#define TEST_LIST \
-    "Available tests are listed below.\n"\
-    "    intr\n"
-
 /* GPIO sub-command list. */
 static const char *subcmd_list[] = {
     "show",
@@ -59,6 +54,8 @@ static const char *subcmd_list[] = {
 static const char *test_list[] = {
 #if defined(CFG_INTR_INCLUDED)
     "intr",
+    "intr_latency",
+    "intr_regression"
 #endif
 };
 
@@ -121,8 +118,20 @@ clicmd_gpio_parse_option(const char *ref,
 static int
 clicmd_gpio_list_show(void)
 {
+    int i;
+
+    if (COUNTOF(test_list) == 0) {
+        sal_printf("No available test.\n");
+        return BCMA_CLI_CMD_OK;
+    }
+
     /* List all test cases. */
-    sal_printf(TEST_LIST);
+    sal_printf("Available tests are listed below.\n");
+    for (i = 0; i < COUNTOF(test_list); i ++)
+    {
+        sal_printf(test_list[i]);
+        sal_printf("\n");
+    }
     return BCMA_CLI_CMD_OK;
 }
 
@@ -158,7 +167,15 @@ bcma_clicmd_gpio_test(bcma_cli_t *cli, bcma_cli_args_t *args)
      switch (i) {
      /* "intr" test case */
      case 0:
-         utgpio_intr();
+         utgpio_intr_type_test();
+         break;
+     /* "latency" test case */
+     case 1:
+         utgpio_intr_latency_test();
+         break;
+     /* "regression" test case */
+     case 2:
+         utgpio_intr_regression_test();
          break;
      default:
          return clicmd_gpio_list_show();

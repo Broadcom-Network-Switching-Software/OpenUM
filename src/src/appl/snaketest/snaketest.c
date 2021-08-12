@@ -3,13 +3,12 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #include "system.h"
 #include "utils/ports.h"
 #include "appl/snaketest.h"
-
 
 #ifdef CFG_SWITCH_SNAKETEST_INCLUDED
 
@@ -64,9 +63,9 @@ _snake_rx_handler(sys_pkt_t *pkt, void *cookie)
     return SYS_RX_HANDLED;
 }
 
-/* Compared packets returned to CPU match tx packet */
+/* Compare if first two received packets match transmitted packets */
 static int
-_snake_analysis(void)
+_snake_rx_compare(void)
 {
     int i, j, k;
 
@@ -108,6 +107,7 @@ err:
     return -1;
 }
 
+#if defined(CFG_SWITCH_STAT_INCLUDED)
 /* Check error counters */
 static int
 _snaketest_stats(uint8 mode)
@@ -118,11 +118,7 @@ _snaketest_stats(uint8 mode)
     uint16 uport;
     int  perror = 0, all_error=0;
 
-#if !defined(CFG_SWITCH_STAT_INCLUDED)
-    return 0;
-#endif
     sal_memset(stat, 0, sizeof(port_stat_t));
-
 
     sal_printf("\nSnake Test : Statistics for each port ");
     for (uport = snaketest_min_uport ; uport <= snaketest_max_uport ; uport++) {
@@ -186,6 +182,7 @@ _snaketest_stats(uint8 mode)
 
     return all_error;
 }
+#endif /* CFG_SWITCH_STAT_INCLUDED */
 
 static void
 _snaketest_txrx(uint8 mode, int test_duration)
@@ -327,16 +324,11 @@ _snaketest_txrx(uint8 mode, int test_duration)
     sal_sleep(50000);
 #endif
 
-    rv = _snake_analysis();
-
-    if ((rv == 0) && (_snaketest_stats(mode) == 0)) {
-        sal_printf("\nSnake Test : Passed.\n");
-    } else {
-        if (rv != 0) {
-            _snaketest_stats(mode);
-        }
-        sal_printf("\nSnake Test : Failed.\n");
-    }
+    rv = _snake_rx_compare();
+#if defined(CFG_SWITCH_STAT_INCLUDED)
+    rv |= _snaketest_stats(mode);
+#endif
+    sal_printf("\nSnake Test : %s.\n", (rv == 0)? "Passed":"Failed");
 }
 
 extern void uip_task(void *param);
@@ -360,6 +352,7 @@ snaketest(uint8 mode, uint8 min_uport, uint8 max_uport, int duration)
 
     uplist_clear(tag_uplist);
     if ((mode == SNAKETEST_TYPE_PORT_PAIR) || (mode == SNAKETEST_TYPE_PKT_GEN)) {
+        sal_printf("\nSnake Test : disabling all paired ports\n");
         for (uport = snaketest_min_uport ; uport <= snaketest_max_uport ; uport++) {
             board_port_enable_set(uport, FALSE);
         }
@@ -367,7 +360,7 @@ snaketest(uint8 mode, uint8 min_uport, uint8 max_uport, int duration)
         sal_sleep(4000);
 
         if (mode == SNAKETEST_TYPE_PORT_PAIR) {
-            /* Snake test setting for port pair loopback */
+            /* Snake test for CPU sending traffic to the first paired loopback ports */
             for (uport = snaketest_min_uport, vlan = VLAN_ID_MIN ; uport < snaketest_max_uport ; uport+=2, vlan++) {
                 snaketest_max_vlan = vlan;
                 board_vlan_create(vlan);
@@ -387,7 +380,7 @@ snaketest(uint8 mode, uint8 min_uport, uint8 max_uport, int duration)
                 }
             }
         } else {
-            /* Snake test setting for packet generator device */
+            /* Snake test for packet generator device sending traffic to the first non-paired port */
             for (uport = snaketest_min_uport, vlan = VLAN_ID_MIN ; uport < snaketest_max_uport ; uport+=2, vlan++) {
                 snaketest_max_vlan = vlan;
                 board_vlan_create(vlan);
@@ -405,13 +398,14 @@ snaketest(uint8 mode, uint8 min_uport, uint8 max_uport, int duration)
         }
 
         /* Check link status */
+        sal_printf("\nSnake Test : verifying all paired loopback ports are up");
         while (1) {
             /* wait for all testing port are link up */
             sal_sleep(2000);
             for (uport = snaketest_min_uport ; uport <= snaketest_max_uport ; uport++) {
                 board_port_link_status_get (uport, &link);
                 if (link == FALSE) {
-                    sal_printf("\nSnake Test : Port %d is link down, please connect cable to it !\n", uport);
+                    sal_printf("\nSnake Test : Port %d is down, please connect cable to it !\n", uport);
                     break;
                 }
             }
@@ -422,7 +416,7 @@ snaketest(uint8 mode, uint8 min_uport, uint8 max_uport, int duration)
         }
 
         if (mode == SNAKETEST_TYPE_PORT_PAIR) {
-            /* Snake test with port pair loopback */
+            /* Snake test with port paired loopback */
 #if defined(CFG_SWITCH_STAT_INCLUDED)
             /* Clear statistics */
             board_port_stat_clear_all();
@@ -437,6 +431,7 @@ snaketest(uint8 mode, uint8 min_uport, uint8 max_uport, int duration)
         /* Check link status */
 #ifndef CFG_EMULATION
         if (mode == SNAKETEST_TYPE_INT_MAC || mode == SNAKETEST_TYPE_INT_PHY) {
+            sal_printf("\nSnake Test : verifying all testing ports are down\n");
             while (1) {
                 /* wait for all testing port are link dwon */
                 sal_sleep(2000);
@@ -453,10 +448,10 @@ snaketest(uint8 mode, uint8 min_uport, uint8 max_uport, int duration)
                 }
             }
         } else {
+            sal_printf("\nSnake Test : disabling all testing ports\n");
             for (uport = snaketest_min_uport ; uport <= snaketest_max_uport ; uport++) {
                 board_port_enable_set(uport, FALSE);
             }
-
             /* wait for all packets drain out */
             sal_sleep(2000);
         }
@@ -480,8 +475,8 @@ snaketest(uint8 mode, uint8 min_uport, uint8 max_uport, int duration)
 
         if (mode == SNAKETEST_TYPE_INT_MAC || mode == SNAKETEST_TYPE_INT_PHY) {
             lb_mode = (mode == 0) ? PORT_LOOPBACK_MAC : PORT_LOOPBACK_PHY;
-
             for (uport = snaketest_min_uport ; uport <= snaketest_max_uport ; uport++) {
+                sal_printf("\nSnake Test : Enabling %s loopback for port %d\n", (mode == 0)? "MAC":"PHY", uport);
                 board_port_loopback_set(uport, lb_mode);
             }
         } else {
@@ -495,7 +490,7 @@ snaketest(uint8 mode, uint8 min_uport, uint8 max_uport, int duration)
                         continue;
                     }
 
-                    board_port_link_status_get (uport, &link);
+                    board_port_link_status_get(uport, &link);
                     if (link == TRUE) {
                         sal_printf("\nSnake Test : Port %d is link up, please disconnect cable to it !\n", uport);
                         break;
@@ -511,6 +506,7 @@ snaketest(uint8 mode, uint8 min_uport, uint8 max_uport, int duration)
                 board_port_enable_set(uport, TRUE);
             }
 
+            sal_printf("\nSnake Test : verifying all externally PHY loopback ports are up\n");
             while (1) {
                 /* wait for all testing port are link up */
                 sal_sleep(2000);
@@ -534,7 +530,6 @@ snaketest(uint8 mode, uint8 min_uport, uint8 max_uport, int duration)
         /* Clear statistics */
         board_port_stat_clear_all();
 #endif
-
         _snaketest_txrx(mode, duration);
 
         if (mode == SNAKETEST_TYPE_INT_MAC || mode == SNAKETEST_TYPE_INT_PHY) {

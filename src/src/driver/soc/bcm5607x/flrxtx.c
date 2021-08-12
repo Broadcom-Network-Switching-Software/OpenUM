@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #include "system.h"
@@ -236,7 +236,7 @@ bcm5607x_rx_retrieve(soc_rx_packet_t *pkt)
     pkt->flags = 0;
 
     pkt->lport = EP_TO_CPU_HEADER_SRC_PORT_NUMf_GET((*hdr));
-    pkt->traffic_class = EP_TO_CPU_HEADER_OUTER_VIDf_GET((*hdr));
+    pkt->traffic_class = EP_TO_CPU_HEADER_OUTER_PRIf_GET((*hdr));
     pkt->timestamp = EP_TO_CPU_HEADER_TIMESTAMPf_GET((*hdr));
     pkt->timestamp_upper = EP_TO_CPU_HEADER_TIMESTAMP_UPPERf_GET((*hdr));
 
@@ -405,11 +405,31 @@ bcm5607x_tx_internal(soc_tx_packet_t *pkt)
         }
 
         sobmh_hdr = 1;
-        PBS_MH_V7_W0_START_SET((soc_pbsmh_v7_hdr_t *)pbhdr);
+        PBS_MH_V7_W0_START_SET(pbhdr);
         soc_pbsmh_v7_field_set(0, (soc_pbsmh_v7_hdr_t *)pbhdr,
                        PBSMH_dst_port, port);
         soc_pbsmh_v7_field_set(0, (soc_pbsmh_v7_hdr_t *)pbhdr,
                        PBSMH_unicast, 1);
+        soc_pbsmh_v7_field_set(0, (soc_pbsmh_v7_hdr_t *)pbhdr,
+                       PBSMH_cos, pkt->traffic_class);
+
+        if (pkt->flags & SOC_TX_FLAG_TIMESYNC) {
+            if (pkt->flags & SOC_TX_FLAG_TIMESYNC_ONE_STEP) {
+                PBS_MH_V7_TS_ONE_STEP_PKT_SET(pbhdr);
+            } else {
+                PBS_MH_V7_TS_PKT_SET(pbhdr);
+            }
+            if (pkt->flags & SOC_TX_FLAG_TIMESYNC_INGRESS_SIGN) {
+                PBS_MH_V7_TS_ONE_STEP_INGRESS_SIGN_PKT_SET(pbhdr);
+            }
+            if (pkt->flags & SOC_TX_FLAG_TIMESYNC_HDR_START_OFFSET) {
+                PBS_MH_V7_TS_ONE_STEP_HDR_START_OFFSET_PKT_SET(pbhdr,
+                                                    pkt->timestamp_offset);
+            }
+            if (pkt->flags & SOC_TX_FLAG_TIMESYNC_REGEN_UDP_CHKSUM) {
+                PBS_MH_V7_TS_ONE_STEP_HDR_START_REGEN_UDP_CHEKSUM_PKT_SET(pbhdr);
+            }
+        }
 
         /* remove tag for untag members */
         if (PBMP_NOT_NULL(pkt->untag_bitmap)) {
@@ -719,18 +739,6 @@ bcm5607x_rxtx_init(void)
 
     rxtx_initialized = TRUE;
 
-#ifdef __LINUX__
-#if 0 
-    /* Enable Hot Swap manager to handle CPU hot swap or Warmboot case */
-    SOC_IF_ERROR_RETURN(READ_PAXB_0_PAXB_HOTSWAP_CTRLr(unit, &rval));
-    soc_reg_field_set(unit, PAXB_0_PAXB_HOTSWAP_CTRLr, &rval, ENABLEf, 1);
-    SOC_IF_ERROR_RETURN(WRITE_PAXB_0_PAXB_HOTSWAP_CTRLr(unit, rval));
-
-    /* Disable iProc reset on PCie link down event */
-    SOC_IF_ERROR_RETURN(WRITE_PAXB_0_RESET_ENABLE_IN_PCIE_LINK_DOWNr(unit, 0x0));
-#endif
-#endif
-
     READ_CMIC_CMC_PKTDMA_CH_CTRLr(unit, cmc, PKTDMA_TX_CH, ctrl);
     CMIC_CMC_PKTDMA_CH_CTRLr_PKTDMA_ENDIANESSf_SET(ctrl, CFG_LITTLE_ENDIAN ? 0 : 1);
     CMIC_CMC_PKTDMA_CH_CTRLr_DIRECTIONf_SET(ctrl, 1);
@@ -810,7 +818,7 @@ bcm5607x_rxtx_init(void)
 }
 
 void
-bcm5607x_ep_to_cpu_hdr_dump(uint8 unit, char *prefix, void *addr)
+cmicx_ep_to_cpu_hdr_dump(uint8 unit, char *prefix, void *addr)
 {
     EP_TO_CPU_HEADER_t *hdr = (EP_TO_CPU_HEADER_t *)(addr - EP_TO_CPU_HEADER_SIZE);
 

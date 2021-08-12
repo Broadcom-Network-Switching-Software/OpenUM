@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #include "system.h"
@@ -21,8 +21,6 @@
 #define TICKS_PER_US    ((BOARD_CPU_CLOCK)/1000000)
 #endif
 
-#define COMPARE_VALUE   (TIMER0_TICK*1000UL*TICKS_PER_US)
-
 volatile STATIC uint32 sys_ticks;
 volatile STATIC uint32 last_sys_ticks;
 volatile STATIC uint32 sys_seconds;
@@ -33,10 +31,18 @@ extern uint32 _getticks(void);
 STATIC uint32 timer_oldcount; /* For keeping track of ticks */
 STATIC uint32 timer_remticks;
 STATIC uint32 clockspertick;
+STATIC uint32 clocksperus;
 #endif /* !CFG_TIMER_USE_INTERRUPT */
 
 tick_t
-sal_get_ticks(void)
+sal_get_cpu_ticks(void) REENTRANT
+{
+    uint32 (*funcptr)(void) = (uint32 (*)(void))_getticks;
+    return (*funcptr)();
+}
+
+tick_t
+sal_get_ticks(void) REENTRANT
 {
     return (tick_t)sys_ticks;
 }
@@ -53,6 +59,9 @@ APIFUNC(sal_get_seconds)(void) REENTRANT
     return sys_seconds;
 }
 
+/* sal_get_us_per_tick
+ * return number of micro seconds per sys_ticks instead of CPU Timer ticks
+ */
 uint32
 sal_get_us_per_tick(void)
 {
@@ -126,6 +135,8 @@ sal_timer_init(uint32 clk_hz, BOOL init)
     }
     /* Unit in 1ms. */
     clockspertick = clk_hz/1000;
+    /* Unit in 1us. */
+    clocksperus = clockspertick/1000;
 #endif /* CFG_TIMER_USE_INTERRUPT */
 }
 
@@ -133,8 +144,14 @@ sal_timer_init(uint32 clk_hz, BOOL init)
 void
 sal_usleep(uint32 usec)
 {
+#if CFG_LONG_US_DEALY_ENABLED
+    uint64 ticks, delta;
+    tick_t curr, count;
+#else
     tick_t curr, ticks;
+#endif
     uint32 (*funcptr)(void) = (uint32 (*)(void))_getticks;
+
 #if CFG_TIMER_USE_INTERRUPT  
     if (usec < TIMER0_TICK * 1000UL) {
         ticks = usec*TICKS_PER_US;
@@ -147,11 +164,20 @@ sal_usleep(uint32 usec)
     }
 #else
 
-    ticks = usec*TICKS_PER_US;
-
+#if CFG_LONG_US_DEALY_ENABLED
     curr = (*funcptr)();
-
+    delta = 0;
+    ticks = (uint64)usec * TICKS_PER_US;
+    while (delta < ticks) {
+        count = (*funcptr)();
+        delta += (count - curr);
+        curr = count;
+    }
+#else
+    ticks = usec*TICKS_PER_US;
+    curr = (*funcptr)();
     while((*funcptr)() - curr < ticks);
+#endif
 
 #endif
 }
@@ -186,12 +212,26 @@ sal_sleep(tick_t ticks)
 uint32 
 sal_time_usecs(void)
 {
+#if CFG_LONG_US_DEALY_ENABLED
+    uint64 val64, remticks, us;
+
+    sal_timer_task(NULL);
+    us = 0;
+    remticks = timer_remticks;
+    while (remticks > clocksperus) {
+        remticks -= clocksperus;
+        us++;
+    }
+    val64 = (((uint64)sys_ticks * 1000 + us) & 0xFFFFFFFF);
+    return (uint32)val64;
+#else
     uint32 (*funcptr)(void) = (uint32 (*)(void))_getticks;
     uint32 count;
-    
+
     count = (*funcptr)();
     count = count / TICKS_PER_US;
-        
+
     return count;
+#endif
 }
 #endif

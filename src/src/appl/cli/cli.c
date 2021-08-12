@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
  
 #ifdef __C51__
@@ -23,11 +23,14 @@
 /* Commands forward */
 APISTATIC void cli_cmd_list_commands(CLI_CMD_OP op) REENTRANT;
 APISTATIC void cli_cmd_command_help(CLI_CMD_OP op) REENTRANT;
+#if defined(__LINUX__) || defined(CFG_SDKCLI_INCLUDED)
+APISTATIC void cli_cmd_command_quit(CLI_CMD_OP op) REENTRANT;
+#endif /* __LINUX__ || CFG_SDKCLI_INCLUDED */
 
 extern void APIFUNC(cli_init)(void) REENTRANT;
 
-/* 
- * Command list 
+/*
+ * Command list
  *
  * Note: We use STATIC initializer because commands could be added during
  *       system initialization phase.
@@ -93,6 +96,22 @@ APIFUNC(cli_cmd_command_help)(CLI_CMD_OP op) REENTRANT
     }
 }
 
+#if defined(__LINUX__) || defined(CFG_SDKCLI_INCLUDED)
+APISTATIC void
+APIFUNC(cli_cmd_command_quit)(CLI_CMD_OP op) REENTRANT
+{
+    if (op == CLI_CMD_OP_HELP) {
+        sal_printf("Command to quit or exit\n");
+    } else if (op == CLI_CMD_OP_DESC) {
+        sal_printf("Quit or exit command");
+#if defined(__LINUX__) && !defined(CFG_SDKCLI_INCLUDED)
+    } else {
+        sal_reset(0);
+#endif /* __LINUX__ && !CFG_SDKCLI_INCLUDED */
+    }
+}
+#endif /* __LINUX__ || CFG_SDKCLI_INCLUDED */
+
 void
 APIFUNC(cli)(void) REENTRANT
 {
@@ -113,15 +132,15 @@ APIFUNC(cli)(void) REENTRANT
             ui_backspace();
             sal_putchar('\n');
             continue;
-#ifdef __LINUX__			
+#ifdef __LINUX__
         } else if (cmd == UI_KB_CTRL_C) {
             sal_reset(0);
-#endif		  
+#endif
         } else {
             sal_printf("\nInvalid command\n");
             continue;
         }
-        
+
         if (*pcmd == NULL) {
             sal_printf("\nCommand not available\n");
             continue;
@@ -131,6 +150,11 @@ APIFUNC(cli)(void) REENTRANT
         (*(*pcmd))(CLI_CMD_OP_DESC);
         sal_printf("\n");
         (*(*pcmd))(CLI_CMD_OP_EXEC);
+#ifdef CFG_SDKCLI_INCLUDED
+        if (cmd == 'x') {
+            break;
+        }
+#endif /* CFG_SDKCLI_INCLUDED */
     }
 }
 
@@ -138,12 +162,12 @@ BOOL
 APIFUNC(cli_add_cmd)(char cmd, CLI_CMD_FUNC func) REENTRANT
 {
     CLI_CMD_FUNC *pcmd = NULL;
-    
+
     SAL_ASSERT(func);
     if (func == NULL) {
         return FALSE;
     }
-    
+
     if (cmd >= 'a' && cmd <= 'z') {
         pcmd = &cmds[cmd - 'a'];
     } else if (cmd >= 'A' && cmd <= 'Z') {
@@ -192,6 +216,9 @@ APIFUNC(cli_init)(void) REENTRANT
     }
     cli_add_cmd('h', cli_cmd_list_commands);
     cli_add_cmd('H', cli_cmd_command_help);
+#if defined(__LINUX__) || defined(CFG_SDKCLI_INCLUDED)
+    cli_add_cmd('x', cli_cmd_command_quit);
+#endif /* __LINUX__ || CFG_SDKCLI_INCLUDED */
 }
 
 #endif /* CFG_CLI_ENABLED */

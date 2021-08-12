@@ -1,7 +1,7 @@
 # $Id: tools.mk,v 1.1 Broadcom SDK $
 # This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
 # 
-# Copyright 2007-2020 Broadcom Inc. All rights reserved.
+# Copyright 2007-2021 Broadcom Inc. All rights reserved.
 
 #
 # Addresses of things unless overridden
@@ -47,22 +47,23 @@ CFG_ROM_START  ?= 0xFFFD0000
 ifeq ($(strip ${CFG_GNU_TOOLCHAIN}),1)
 TOOLCHAIN_DIR ?= /projects/ntsw-tools/gnu/$(MACHINE)-linux-gnu/$(ARMEB)-elf
 TOOLPREFIX ?= $(ARMEB)-elf-
-GCC_VERSION = 4.7.0
+GCC_VERSION = $(shell $(TOOLCHAIN_DIR)/bin/$(TOOLPREFIX)gcc -dumpversion)
 else
 TOOLCHAIN_DIR ?= /projects/ntsw-tools/gnu/gcc-arm-none-eabi-4_8-2014q1
 TOOLPREFIX ?= $(ARMEB)-none-eabi-
-GCC_VERSION = 4.8.3
+GCC_VERSION = $(shell $(TOOLCHAIN_DIR)/bin/$(TOOLPREFIX)gcc -dumpversion)
 endif
+
 TOOLS ?= $(TOOLCHAIN_DIR)/bin
 
 # Build MDK phy library
 TOOLCHAIN_BIN_DIR = $(TOOLS)
 
 ifeq ($(strip ${CFG_GNU_TOOLCHAIN}),1)
-LD_LIBRARY_PATH = $(TOOLS)/../arm-linux/lib
+LD_LIBRARY_PATH ?= $(TOOLS)/../arm-linux/lib
 MDKSYM_INCLUDE =
 else
-LD_LIBRARY_PATH = $(TOOLS)/../arm-none-eabi/lib
+LD_LIBRARY_PATH ?= $(TOOLS)/../arm-none-eabi/lib
 MDKSYM_INCLUDE =
 endif
 
@@ -111,7 +112,7 @@ CFLAGS += -g -std=gnu99 -Wunused -Wall -ffunction-sections -fdata-sections -msof
 else
 CFLAGS += -g -std=gnu99 -Wunused -Wall -fpic -msingle-pic-base -mno-pic-data-is-text-relative -ffunction-sections -fdata-sections -msoft-float -mtpcs-frame -m$(ENDIAN)-endian -fno-builtin -fms-extensions
 endif
-CFLAGS += -Werror
+CFLAGS += -Wno-maybe-uninitialized -Wno-uninitialized -Werror
 # arm architecture
 CFLAGS += -D__ARM__ -mthumb -mcpu=cortex-r4 -Wa,-meabi=5
 CFLAGS += -DSYS_BE_PIO=0 -DSYS_BE_PACKET=0 -DSYS_BE_OTHER=0

@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #include "system.h"
@@ -76,14 +76,14 @@ cli_cmd_flash(CLI_CMD_OP op) REENTRANT
         sal_printf( "  r - Remove nvram variable\n"
                    "  c - Commit nvram variable bindings\n");
 #endif
+        sal_printf( "  E - Erase flash \n" );
 #if (defined(__LINUX__) && !defined(__SIM__)) || defined(CFG_DVT_INCLUDED)
-       sal_printf( "  E - Erase flash \n" );
        sal_printf( "  S - CPU spin in SRAM \n" );
 #endif
+        sal_printf( "  D - Dump flash content\n");
 #if defined(__LINUX__) && !defined(__SIM__)
        sal_printf( "  P - Write file into flash \n" );
        sal_printf( "  R - Read flash into file\n");
-       sal_printf( "  D - Dump flash content\n");
 #endif
 #endif /* defined(CFG_NVRAM_SUPPORT_INCLUDED) || defined(CFG_VENDOR_CONFIG_SUPPORT_INCLUDED) */
 #if defined(CFG_PERSISTENCE_SUPPORT_ENABLED) || defined(CFG_VENDOR_CONFIG_SUPPORT_INCLUDED)
@@ -218,6 +218,16 @@ cli_cmd_flash(CLI_CMD_OP op) REENTRANT
                 sal_printf("\n\nPlease reboot the device to allow the commit to take effect.\n");
             }
 #endif
+        } else if (c == 'D') {
+            uint32 off, len;
+
+            if (ui_get_dword(&off, "Flash offset:") != UI_RET_OK) {
+                return;
+            }
+            if (ui_get_dword(&len, "Flash Length:") != UI_RET_OK) {
+                return;
+            }
+            flash_dump(off, len);
 #if defined(__LINUX__) && !defined(__SIM__)
         } else if (c == 'P') {
            uint32 off;
@@ -243,30 +253,20 @@ cli_cmd_flash(CLI_CMD_OP op) REENTRANT
            }
 
 		   flash_file_read(name, off, len);
-        } else if (c == 'D') {
-             uint32 off, len;
-             if (ui_get_dword(&off, "Flash offset:") != UI_RET_OK) {
-              		return;
-             }
-			 if (ui_get_dword(&len, "Flash Length:") != UI_RET_OK) {
-			   	 return;
-			 }
-			 flash_dump(off, len);
 #endif
-#if (defined(__LINUX__) && !defined(__SIM__)) || defined(CFG_DVT_INCLUDED)
-
-        } else if (c == 'S') {
-            spi_spin();
         } else if (c == 'E') {
-
             uint32 off, len;
+
             if (ui_get_dword(&off, "Flash offset:") != UI_RET_OK) {
-          	   return;
+                return;
             }
             if (ui_get_dword(&len, "Flash Length:") != UI_RET_OK) {
-             	return;
+                return;
             }
             flash_erase(off + CFG_FLASH_START_ADDRESS, len);
+#if (defined(__LINUX__) && !defined(__SIM__)) || defined(CFG_DVT_INCLUDED)
+        } else if (c == 'S') {
+            spi_spin();
 #endif
 		}
 

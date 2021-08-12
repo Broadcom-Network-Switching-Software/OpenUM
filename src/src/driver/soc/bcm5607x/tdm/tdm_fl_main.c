@@ -2,7 +2,7 @@
  * $Id: tdm_fl_main.c.$
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  * $All Rights Reserved.$
  *
  * TDM chip main functions
@@ -175,13 +175,6 @@ tdm_fl_main_spcl_restore_cfg(tdm_mod_t *_tdm)
 
 Map fp port numbering from phy to speudo_phy.
  */
-#ifdef VENDOR_BROADCOM
-/**
-| PHY   | PSEUDO_PHY |
-|-------|------------|
-| 2-77  |  1-76      |
- */
-#endif
 static void
 tdm_fl_main_spcl_map_cfg_phy2pphy(tdm_mod_t *_tdm)
 {
@@ -207,22 +200,6 @@ tdm_fl_main_spcl_map_cfg_phy2pphy(tdm_mod_t *_tdm)
 
 Aggregate Gports to signle pseudo port.
  */
-#ifdef VENDOR_BROADCOM
-/**
-GPORT 4x10G with USXGMII (16x2.5G or 16x1G)
-
-GPORT | ORIG_PHY | REMAP_PHY | AGGREG_PHY | AGGREG_SPEED
-------|-------------------------------------------------
-GPORT0      2-9  |  1-8      |     1      |   40G
-GPORT1     10-17 |  9-16     |            |
-
-GPORT2     18-25 | 17-24     |     17     |   40G
-GPORT3     26-33 | 25-32     |            |
-
-GPORT4     34-41 | 33-40     |     33     |   40G
-GPORT5     42-49 | 41-48     |            |
- */
-#endif
 static void
 tdm_fl_main_spcl_aggregate_cfg_gport(tdm_mod_t *_tdm)
 {

@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 MEMORY {
@@ -30,7 +30,12 @@ SECTIONS
         constdata_end = .;
         *pcmphyctrl_phymod.a:falcon16_v1l4p1_ucode.o(.data*);
         *pcmphyctrl_phymod.a:merlin16_ucode.o(.data*);
-        *(EXCLUDE_FILE (*cferam.a:*.o intr_entry.o tick.o) .text*);
+        *pcmphyctrl_phymod.a:bcmi_tsce_xgxs_sym.o(.data*)
+        *pcmphyctrl_phymod.a:bcmi_tscf_xgxs_sym.o(.data*)
+        *pcmphyctrl_phymod.a:bcmi_tsce16_xgxs_sym.o(.data*)
+        *pcmphyctrl_phymod.a:bcmi_tscf16_gen3_xgxs_sym.o(.data*)
+        *libcfe.a:bcm5607x_sym.o(.data*)
+        *(EXCLUDE_FILE (*cferam.a:*.o intr_entry.o) .text*);
         *(EXCLUDE_FILE (*cferam.a:*.o) .rodata*);
         . = ALIGN(4);
 }
@@ -50,7 +55,6 @@ vector_start = .;
         vector_ram_start = .;
         vector.o(.ATCM);
         intr_entry.o(.text*);
-        tick.o(.text*);
         *cferam.a:*.o(.text*);
         *cferam.a:*.o(.rodata*);
         . = ALIGN(4);
@@ -76,9 +80,19 @@ text_end = vector_start + vector_size;
         . = ALIGN(32);
         *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:falcon16_v1l4p1_ucode.o) .data.*);
         *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:merlin16_ucode.o) .data.*);
+        *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:bcmi_tsce_xgxs_sym.o) .data*);
+        *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:bcmi_tscf_xgxs_sym.o) .data*);
+        *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:bcmi_tsce16_xgxs_sym.o) .data*);
+        *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:bcmi_tscf16_gen3_xgxs_sym.o) .data*);
+        *(EXCLUDE_FILE (*libcfe.a:bcm5607x_sym.o) .data.*);
         data_rel2_start = .;
         *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:falcon16_v1l4p1_ucode.o) .data*);
         *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:merlin16_ucode.o) .data*);
+        *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:bcmi_tsce_xgxs_sym.o) .data*);
+        *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:bcmi_tscf_xgxs_sym.o) .data*);
+        *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:bcmi_tsce16_xgxs_sym.o) .data*);
+        *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:bcmi_tscf16_gen3_xgxs_sym.o) .data*);
+        *(EXCLUDE_FILE (*libcfe.a:bcm5607x_sym.o) .data*);
         data_rel2_end = .;
         . = ALIGN(4);
         data_end = .;

@@ -1,20 +1,25 @@
-/*
- * $Id: qos.h,v 1.5 Broadcom SDK $
+/*! \file qos.h
  *
+ * QoS board APIs.
+ */
+/*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef _BOARDAPI_QOS_H_
 #define _BOARDAPI_QOS_H_
 
-/*
+/*!
  * Select QoS types
  */
 typedef enum qos_type_s {
+    /*! port based */
     QT_PORT_BASED,
+    /*! 802.1p based */
     QT_DOT1P_PRIORITY,
+    /*! last type */
     QT_COUNT
 } qos_type_t;
 

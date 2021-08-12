@@ -1,0 +1,30 @@
+/*! \file bcma_clicmd_temp.h
+ *
+ * CLI 'TempQuery' API.
+ */
+/*
+ * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
+ * 
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
+ */
+
+#ifndef BCMA_CLICMD_TEMP_H
+#define BCMA_CLICMD_TEMP_H
+
+#include <appl/sdkcli/bcma_cli.h>
+
+/*! Brief description for CLI command. */
+#define BCMA_CLICMD_TEMP_DESC "Query monitored temperature."
+
+/*!
+ * \brief CLI 'TempQuery' command.
+ *
+ * \param [in] cli CLI object
+ * \param [in] args Argument list
+ *
+ * \return BCMA_CLI_CMD_xxx return values.
+ */
+extern int
+bcma_clicmd_temp(bcma_cli_t *cli, bcma_cli_args_t *args);
+
+#endif /* BCMA_CLICMD_TEMP_H */

@@ -1,15 +1,19 @@
 /*! \file sdk_phy.c
+ *
+ * SDK PHY interface.
  */
 /*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #define __int8_t_defined
 #define __uint32_t_defined
 
 #include <system.h>
+#include <cmicx_miim.h>
+
 #undef SOC_IF_ERROR_RETURN
 #include <soc/error.h>   /* for SOC_E_XXXX */
 #include <utils/net.h>   /* for htol32 */
@@ -574,7 +578,18 @@ int
 soc_miim_write(int unit, uint16 phy_id,
                uint8 phy_reg_addr, uint16 phy_wr_data)
 {
-    return SOC_E_UNAVAIL;
+    uint32_t data = phy_wr_data;
+    cmicx_miim_op_t miim_op, *op = &miim_op;
+
+    sal_memset(op, 0, sizeof(*op));
+
+    op->opcode = CMICX_MIIM_OPC_CL22_WRITE;
+    op->internal = PCM_PHY_ID_IS_INTERNAL_BUS(phy_id);
+    op->busno = PCM_PHY_ID_BUS_NUM(phy_id);
+    op->phyad = PCM_PHY_ID_PHY_ADDR(phy_id);
+    op->regad = phy_reg_addr & 0x1f;
+
+    return cmicx_miim_op(unit, op, &data);
 }
 
 /*
@@ -598,7 +613,22 @@ int
 soc_miim_read(int unit, uint16 phy_id,
               uint8 phy_reg_addr, uint16 *phy_rd_data)
 {
-    return SOC_E_UNAVAIL;
+    int rv;
+    uint32_t data = 0;
+    cmicx_miim_op_t miim_op, *op = &miim_op;
+
+    sal_memset(op, 0, sizeof(*op));
+
+    op->opcode = CMICX_MIIM_OPC_CL22_READ;
+    op->internal = PCM_PHY_ID_IS_INTERNAL_BUS(phy_id);
+    op->busno = PCM_PHY_ID_BUS_NUM(phy_id);
+    op->phyad = PCM_PHY_ID_PHY_ADDR(phy_id);
+    op->regad = phy_reg_addr & 0x1f;
+
+    rv = cmicx_miim_op(unit, op, &data);
+    *phy_rd_data = data & 0xffff;
+
+    return rv;
 }
 
 /*
@@ -621,7 +651,8 @@ int
 soc_esw_miim_write(int unit, uint32 phy_id,
                    uint32 phy_reg_addr, uint16 phy_wr_data)
 {
-    return SOC_E_UNAVAIL;
+    return soc_miim_write(unit, (uint16)phy_id,
+                          (uint16)phy_reg_addr, phy_wr_data);
 }
 
 /*
@@ -644,7 +675,8 @@ int
 soc_esw_miim_read(int unit, uint32 phy_id,
                   uint32 phy_reg_addr, uint16 *phy_rd_data)
 {
-    return SOC_E_UNAVAIL;
+    return soc_miim_read(unit, (uint16)phy_id,
+                         (uint16)phy_reg_addr, phy_rd_data);
 }
 
 /*
@@ -671,7 +703,19 @@ int
 soc_miimc45_write(int unit, uint16 phy_id, uint8 phy_devad,
                   uint16 phy_reg_addr, uint16 phy_wr_data)
 {
-    return SOC_E_UNAVAIL;
+    uint32_t data = phy_wr_data;
+    cmicx_miim_op_t miim_op, *op = &miim_op;
+
+    sal_memset(op, 0, sizeof(*op));
+
+    op->opcode = CMICX_MIIM_OPC_CL45_WRITE;
+    op->internal = PCM_PHY_ID_IS_INTERNAL_BUS(phy_id);
+    op->busno = PCM_PHY_ID_BUS_NUM(phy_id);
+    op->phyad = PCM_PHY_ID_PHY_ADDR(phy_id);
+    op->regad = phy_reg_addr;
+    op->devad = phy_devad;
+
+    return cmicx_miim_op(unit, op, &data);
 }
 
 /*
@@ -697,9 +741,24 @@ int
 soc_miimc45_read(int unit, uint16 phy_id, uint8 phy_devad,
                  uint16 phy_reg_addr, uint16 *phy_rd_data)
 {
-    return SOC_E_UNAVAIL;
-}
+    int rv;
+    uint32_t data = 0;
+    cmicx_miim_op_t miim_op, *op = &miim_op;
 
+    sal_memset(op, 0, sizeof(*op));
+
+    op->opcode = CMICX_MIIM_OPC_CL45_READ;
+    op->internal = PCM_PHY_ID_IS_INTERNAL_BUS(phy_id);
+    op->busno = PCM_PHY_ID_BUS_NUM(phy_id);
+    op->phyad = PCM_PHY_ID_PHY_ADDR(phy_id);
+    op->regad = phy_reg_addr;
+    op->devad = phy_devad;
+
+    rv = cmicx_miim_op(unit, op, &data);
+    *phy_rd_data = data & 0xffff;
+
+    return rv;
+}
 
 /*
  * Function:
@@ -717,16 +776,23 @@ soc_miimc45_read(int unit, uint16 phy_id, uint8 phy_devad,
  */
 int
 soc_esw_miimc45_write(int unit, uint32 phy_id,
-                     uint32 phy_reg_addr, uint16 phy_wr_data)
+                      uint32 phy_reg_addr, uint16 phy_wr_data)
 {
-    return SOC_E_UNAVAIL;
+    uint8 dev_addr;
+    uint16 reg_addr;
+
+    dev_addr = SOC_PHY_CLAUSE45_DEVAD(phy_reg_addr);
+    reg_addr = SOC_PHY_CLAUSE45_REGAD(phy_reg_addr);
+
+    return soc_miimc45_write(unit, (uint16)phy_id, dev_addr,
+                             reg_addr, phy_wr_data);
 }
 
 /*
  * Function:
- *      soc_esw_miimc45_write
+ *      soc_esw_miimc45_read
  * Purpose:
- *      Write a value from an MII register.
+ *      Read a value from an MII register.
  * Parameters:
  *      unit - StrataSwitch Unit #.
  *      phy_id - Phy ID to write (MIIM address)
@@ -738,9 +804,16 @@ soc_esw_miimc45_write(int unit, uint32 phy_id,
  */
 int
 soc_esw_miimc45_read(int unit, uint32 phy_id,
-                    uint32 phy_reg_addr, uint16 *phy_rd_data)
+                     uint32 phy_reg_addr, uint16 *phy_rd_data)
 {
-    return SOC_E_UNAVAIL;
+    uint8 dev_addr;
+    uint16 reg_addr;
+
+    dev_addr = SOC_PHY_CLAUSE45_DEVAD(phy_reg_addr);
+    reg_addr = SOC_PHY_CLAUSE45_REGAD(phy_reg_addr);
+
+    return soc_miimc45_read(unit, (uint16)phy_id, dev_addr,
+                            reg_addr, phy_rd_data);
 }
 
 /*

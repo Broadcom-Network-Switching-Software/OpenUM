@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef _SOC_H_
@@ -51,11 +51,11 @@ typedef void (*SOC_RX_HANDLER)(soc_rx_packet_t *) REENTRANT;
 #define SOC_TX_FLAG_TIMESTAMP_REQUEST               (1 << 0)
 #define SOC_TX_FLAG_USE_UNTAG_PORT_BITMAP           (1 << 1)
 /* TimeSync Packet Flags. */
-#define SOC_TX_FLAG_TIMESYNC_ONE_STEP                  (1 << 2) /* One step timestamp. */
-#define SOC_TX_FLAG_TIMESYNC_ONE_STEP_INGRESS_SIGN     (1 << 3) /* Ingress timestamp sign bit. */
-#define SOC_TX_FLAG_TIMESYNC_ONE_STEP_HDR_START_OFFSET (1 << 4) /* PTP header offset in packet buffer. */
-#define SOC_TX_FLAG_TIMESYNC_ONE_STEP_REGEN_UDP_CHKSUM (1 << 5) /* Regenerate UDP header checksum of PTP packet. */
-#define SOC_TX_FLAG_TIMESYNC_TWO_STEP                  (1 << 6) /* Two-step timestamp. */
+#define SOC_TX_FLAG_TIMESYNC                        (1 << 2) /* Packet is for Time Sync protocol. */
+#define SOC_TX_FLAG_TIMESYNC_ONE_STEP               (1 << 3) /* One step timestamp. */
+#define SOC_TX_FLAG_TIMESYNC_INGRESS_SIGN           (1 << 4) /* Ingress timestamp sign bit. */
+#define SOC_TX_FLAG_TIMESYNC_HDR_START_OFFSET       (1 << 5) /* PTP header offset in packet buffer. */
+#define SOC_TX_FLAG_TIMESYNC_REGEN_UDP_CHKSUM       (1 << 6) /* Regenerate UDP header checksum of PTP packet. */
 
 #define SOC_TX_TAG_MODE_FOLLOW_SWITCH_RULES         (0)
 #define SOC_TX_TAG_MODE_UNTAG_ALL                   (1)
@@ -271,6 +271,16 @@ typedef struct soc_switch_s {
                                       uint8 block,
                                       uint32 addr,
                                       uint32 val) REENTRANT;
+    sys_error_t (*xgs_switch_reg64_get)(uint8 unit,
+                                        uint8 block,
+                                        uint32 addr,
+                                        uint32 *val,
+                                        int len) REENTRANT;
+    sys_error_t (*xgs_switch_reg64_set)(uint8 unit,
+                                        uint8 block,
+                                        uint32 addr,
+                                        uint32 *val,
+                                        int len) REENTRANT;
     sys_error_t (*xgs_switch_mem_get)(uint8 unit,
                                       uint8 block,
                                       uint32 addr,
@@ -281,6 +291,26 @@ typedef struct soc_switch_s {
                                       uint32 addr,
                                       uint32 *buf,
                                       int len) REENTRANT;
+    sys_error_t (*xgs_switch_tcam_mem_get)(uint8 unit,
+                                           uint8 block_id,
+                                           uint32 addr,
+                                           uint32 *buf,
+                                           int len,
+                                           uint32 key_sp,
+                                           uint32 mask_sp,
+                                           int key_len) REENTRANT;
+    sys_error_t (*xgs_switch_tcam_mem_set)(uint8 unit,
+                                           uint8 block_id,
+                                           uint32 addr,
+                                           uint32 *buf,
+                                           int len,
+                                           uint32 key_sp,
+                                           uint32 mask_sp,
+                                           int key_len) REENTRANT;
+    sys_error_t (*xgs_switch_read)(uint8 unit,
+                                   uint32 addr, uint32 *val) REENTRANT;
+    sys_error_t (*xgs_switch_write)(uint8 unit,
+                                    uint32 addr, uint32 val) REENTRANT;
 #else
     sys_error_t (*xgs_switch_reg_get)(uint8 unit,
                                       uint32 addr,

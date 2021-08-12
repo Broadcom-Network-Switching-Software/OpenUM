@@ -3,7 +3,7 @@
 /*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef _BCM5607X_DRV_H_
@@ -79,7 +79,9 @@ typedef struct {
     uint32          spi_device;
     uint32          chip;                  /* chip id bits */
     int             block_num;              /* count of entries in block_info */
-    soc_ptype_t     fe;    
+    int             max_mtu;                /*max size of system mtu*/
+    int             port_addr_max;          /* max addressable ports */
+    soc_ptype_t     fe;
     soc_ptype_t     ge;
     soc_ptype_t     ce;
     soc_ptype_t     il;                     /* Interlaken :phy driver need this*/
@@ -173,7 +175,7 @@ typedef struct soc_control_s {
 /* For NULL PHY */
 #undef SOC_PORT_VALID
 #define SOC_PORT_VALID(unit, port)    (1)
- 
+
 extern void soc_phy_addr_default(int unit, int lport, uint16 *phy_addr, uint16 *phy_addr_int);
 extern soc_functions_t *soc_chip_drv_funs_find(uint16 dev_id, uint8 rev_id);
 #endif /* _BCM5607X_DRV_H_ */

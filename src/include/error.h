@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef _ERROR_H_
@@ -22,7 +22,9 @@ typedef enum {
     SYS_ERR_NOT_IMPLEMENTED         =    -9,
     SYS_ERR_EXISTS                  =    -10,
     SYS_ERR_NOT_FOUND               =    -11,
-    SYS_ERR_UNAVAIL                 =    -12
+    SYS_ERR_UNAVAIL                 =    -12,
+    SYS_ERR_INIT                    =    -13,
+    SYS_ERR_EMPTY                   =    -14
 } sys_error_t;
 
 #endif /* _ERROR_H_ */

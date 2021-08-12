@@ -1,7 +1,7 @@
 # $Id: Makefile,v 1.4 Broadcom SDK $
 # This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
 # 
-# Copyright 2007-2020 Broadcom Inc. All rights reserved.
+# Copyright 2007-2021 Broadcom Inc. All rights reserved.
 
 CFG_IMG := bcm95607x
 SYSTEM := bcm95607x
@@ -68,6 +68,9 @@ TOOL_DIR =  $(abspath  ../../tools)
 export CFG_LITTLE CFG_RELOC
 
 CLEANOBJS += cfe.* cfez.* cfez zipstart.* conf.h
+ifeq ($(strip ${CFG_DUAL_IMAGE}),1)
+CLEANOBJS += ${CFETARGET-2}.*
+endif
 CONFIG_FILES = .config include/config.h
 
 ifeq ($(target), loader)
@@ -76,11 +79,21 @@ else
     LD_SCRIPT = um_xip_pic.lds
 endif
 
+ifeq ($(strip ${CFG_DUAL_IMAGE}),1)
+ALL : $(CFG_CONFIG_UPDATE) preparation conf.h img_name ${CFETARGET} ${CFETARGET}.bin ${FLASH_IMG} ${FLASH_IMG_2}
+	mv cfe.bin ${CFG_IMG}-${target}.bin
+	mv ${CFETARGET-2}.bin ${CFG_IMG}-${target}-2.bin
+else
 ALL : $(CFG_CONFIG_UPDATE) preparation conf.h img_name ${CFETARGET} ${CFETARGET}.bin ${FLASH_IMG}
 	mv cfe.bin ${CFG_IMG}-${target}.bin
+endif
+
 ifneq ($(strip ${CFG_XIP}),1)
 	rm ${CFETARGET}.bin
 	rm ${BOOTTARGET}.bin
+ifeq ($(strip ${CFG_DUAL_IMAGE}),1)
+	rm ${CFETARGET-2}.bin
+endif
 endif
 
 
@@ -105,9 +118,4 @@ ${CFG_IMG}-${target}.bin8: ${CFETARGET}.bin
 
 
 include $(BUILD_DIR)/um.mk
-
--include ${BUILD_DIR}/um_gen_phylibs.mk
-
 include ${BUILD_DIR}/um_link.mk
-
-

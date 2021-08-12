@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #include "system.h"
@@ -334,7 +334,7 @@ sal_malloc(uint32 size) {
     int i;
 
     for (i=0; i< MEMPOOL_SIZE; i++) {
-        ptr = _sal_malloc(&kmempool[i], size);       
+        ptr = _sal_malloc(&kmempool[i], size);
         if (ptr) {
             return ptr;
         }
@@ -342,7 +342,7 @@ sal_malloc(uint32 size) {
     return NULL;
 }
 
-void * 
+void *
 sal_alloc(uint32 size, const char *str) {
      return sal_malloc(size);
 }
@@ -352,11 +352,11 @@ void sal_free(void *ptr)
     int i;
 
     for (i=0; i< MEMPOOL_SIZE; i++) {
-        if ((uint32) ptr >= (uint32) kmempool[i].base && 
+        if ((uint32) ptr >= (uint32) kmempool[i].base &&
             (uint32) ptr < (uint32) &kmempool[i].base[kmempool[i].length]) {
             _sal_free(&kmempool[i], ptr);
         }
-    }   
+    }
 }
 
 void *
@@ -412,3 +412,14 @@ _sal_assert(const char *expr, const char *file, int line)
 }
 #endif /* CFG_PCM_SUPPORT_INCLUDED */
 
+ char *
+ sal_strdup(const char *s)
+ {
+     int len = sal_strlen(s);
+     char *rc = sal_malloc(len + 1);
+     if (rc != NULL) {
+         /* coverity[secure_coding] */
+         sal_strcpy(rc, s);
+     }
+     return rc;
+ }

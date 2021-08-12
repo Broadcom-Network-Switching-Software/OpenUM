@@ -5,12 +5,13 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 #include <system.h>
+#include <boardapi/base.h>
 #include <boardapi/gpio.h>
 #include <boardapi/intr.h>
-
+#include <utils/shr/shr_debug.h>
 /* #define DEBUG */
 #include "utgpio_internal.h"
 
@@ -43,7 +44,7 @@ gpio_intr_mode[] = {
  *   Public function.
  */
 sys_error_t
-utgpio_intr(void) {
+utgpio_intr_type_test(void) {
 
     int i;
     sys_error_t rv = SYS_OK;
@@ -205,4 +206,5 @@ utgpio_intr(void) {
     }
     return rv;
 }
+
 #endif /* CFG_INTR_INCLUDED */

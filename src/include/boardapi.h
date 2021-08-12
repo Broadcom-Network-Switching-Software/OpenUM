@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef _BOARDAPI_H_
@@ -21,4 +21,12 @@
 #include "boardapi/lag.h"
 #include "boardapi/l2.h"
 #include "boardapi/time.h"
+#include "boardapi/wdt.h"
+#include "boardapi/intr.h"
+#include "boardapi/gpio.h"
+#include "boardapi/timesync.h"
+#include "boardapi/temp.h"
+#include "boardapi/led.h"
+#include "boardapi/link.h"
+
 #endif /* _BOARDAPI_H_ */

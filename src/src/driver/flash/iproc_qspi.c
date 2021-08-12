@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #include "system.h"
@@ -11,6 +11,10 @@
 
 #if CFG_FLASH_SUPPORT_ENABLED
 #include "flash_table.h"
+
+#if CFG_FLASH_4BYTE_ADDR_ENABLED
+int set_4byte = 0;
+#endif
 
 /*
  * Register and bit definitions for the BSPI control
@@ -106,7 +110,7 @@
 
 #define M25LXX_PAGE_SIZE     (256)
 
-#define MSPI_MAX_PROGRAM_LEN  (12)
+#define MSPI_MAX_PROGRAM_LEN  (8)
 
 #define MIN(a, b) ((a) <= (b)? (a):(b))
 
@@ -115,6 +119,8 @@
 /* Forwards */
 static BOOL
 flash_to_local_addr(flash_dev_t* dev, hsaddr_t* addr)  __attribute__((section(".2ram")));
+
+sys_error_t m25lxx_set_4byte_mode(flash_dev_t *dev, int enable) __attribute__((section(".2ram")));
 
 sys_error_t spi_master_init(void) __attribute__((section(".2ram")));
 
@@ -288,17 +294,34 @@ spi_program(uint32 base, uint8 *buf, uint8 len)
 {
     int i, j;
 
-    SYS_REG_WRITE32(BCHP_MSPI_TXRAM00, SPI_PP_CMD);
-    SYS_REG_WRITE32(BCHP_MSPI_TXRAM00 + 8, (base >> 16) & 0xFF);
-    SYS_REG_WRITE32(BCHP_MSPI_TXRAM00 + 16, (base >> 8) & 0xFF);
-    SYS_REG_WRITE32(BCHP_MSPI_TXRAM00 + 24, base & 0xFF);
+#if CFG_FLASH_4BYTE_ADDR_ENABLED
+    if (set_4byte) {
+        SYS_REG_WRITE32(BCHP_MSPI_TXRAM00, SPI_PP_CMD);
+        SYS_REG_WRITE32(BCHP_MSPI_TXRAM00 + 8, ((base >> 24) & 0xff));
+        SYS_REG_WRITE32(BCHP_MSPI_TXRAM00 + 16, ((base >> 16) & 0xff));
+        SYS_REG_WRITE32(BCHP_MSPI_TXRAM00 + 24, ((base >> 8) & 0xff));
+        SYS_REG_WRITE32(BCHP_MSPI_TXRAM00 + 32, ((base ) & 0xff));
 
-    for (i = 4, j = 0; j < len; i++, j++) {
-        SYS_REG_WRITE32(BCHP_MSPI_TXRAM00 + (i * 8), (uint32)buf[j]);
-    }
+        for (i = 5, j = 0; j < len; i++, j++) {
+            SYS_REG_WRITE32(BCHP_MSPI_TXRAM00 + (i * 8), (uint32)buf[j]);
+        }
+        for (i = 0; i < len + 5; i++) {
+            SYS_REG_WRITE32(BCHP_MSPI_CDRAM00 + (i * 4) , SPI_CDRAM_CONT | SPI_CDRAM_PCS_PCS1);
+        }
+    } else
+#endif
+    {
+        SYS_REG_WRITE32(BCHP_MSPI_TXRAM00, SPI_PP_CMD);
+        SYS_REG_WRITE32(BCHP_MSPI_TXRAM00 + 8, (base >> 16) & 0xFF);
+        SYS_REG_WRITE32(BCHP_MSPI_TXRAM00 + 16, (base >> 8) & 0xFF);
+        SYS_REG_WRITE32(BCHP_MSPI_TXRAM00 + 24, base & 0xFF);
 
-    for (i = 0; i < len + 4; i++) {
-        SYS_REG_WRITE32(BCHP_MSPI_CDRAM00 + (i * 4) , SPI_CDRAM_CONT | SPI_CDRAM_PCS_PCS1);
+        for (i = 4, j = 0; j < len; i++, j++) {
+            SYS_REG_WRITE32(BCHP_MSPI_TXRAM00 + (i * 8), (uint32)buf[j]);
+        }
+        for (i = 0; i < len + 4; i++) {
+            SYS_REG_WRITE32(BCHP_MSPI_CDRAM00 + (i * 4) , SPI_CDRAM_CONT | SPI_CDRAM_PCS_PCS1);
+        }
     }
 
     SYS_REG_WRITE32(BCHP_MSPI_CDRAM00 + ((i - 1) * 4), SPI_CDRAM_PCS_PCS1);
@@ -385,6 +408,12 @@ mspi_init(flash_dev_t *dev)
     for (i=0; i < dev->num_block_infos; i++) {
         dev->end += ((hsaddr_t) dev->block_info[i].block_size *
                      (hsaddr_t) dev->block_info[i].blocks);
+#if CFG_FLASH_4BYTE_ADDR_ENABLED
+        if ((dev->end - dev->start) > 0x1000000) {
+		    sal_printf("Total flash size is 0x%x\n", (dev->end - dev->start));
+            set_4byte = 1;
+        }
+#endif
     }
     dev->end -= 1;
     return SYS_OK;
@@ -429,8 +458,15 @@ sys_error_t m25lxx_set_4byte_mode(flash_dev_t *dev, int enable)
     SYS_REG_WRITE32(BCHP_BSPI_MAST_N_BOOT_CTRL,1);
     ENTER_BSPI_DELAY(10);
 
+    cmd[0] = SPI_WREN_CMD;
+    if (spi_transaction(cmd,1,NULL,0) != SYS_OK) {
+        rv = SYS_ERR;
+    }
     cmd[0] = enable? CMD_MX25XX_EN4B : CMD_MX25XX_EX4B;
-
+    if (spi_transaction(cmd,1,NULL,0) != SYS_OK) {
+        rv = SYS_ERR;
+    }
+    cmd[0] = SPI_WRDI_CMD;
     if (spi_transaction(cmd,1,NULL,0) != SYS_OK) {
         rv = SYS_ERR;
     }
@@ -441,7 +477,7 @@ sys_error_t m25lxx_set_4byte_mode(flash_dev_t *dev, int enable)
 sys_error_t m25lxx_erase_block(flash_dev_t *dev, hsaddr_t block_base)
 {
     hsaddr_t local_base = block_base;
-    uint8 cmd[4];
+    uint8 cmd[5];
     uint8 data;
     sys_error_t rv = SYS_OK;
     
@@ -453,7 +489,11 @@ sys_error_t m25lxx_erase_block(flash_dev_t *dev, hsaddr_t block_base)
 
         while(SYS_REG_READ32(BCHP_BSPI_BUSY_STATUS));
         SYS_REG_WRITE32(BCHP_BSPI_MAST_N_BOOT_CTRL,1);
-
+#if CFG_FLASH_4BYTE_ADDR_ENABLED
+        if (set_4byte) {
+            m25lxx_set_4byte_mode(dev, 1);
+        }
+#endif
         /* Wait for previous write operation done */  
         do {
             cmd[0] = SPI_RDSR_CMD;
@@ -480,15 +520,30 @@ sys_error_t m25lxx_erase_block(flash_dev_t *dev, hsaddr_t block_base)
             }
         /* Bit 0 = Write-in-Progress */
         } while(data & 0x01);
+#if CFG_FLASH_4BYTE_ADDR_ENABLED
+        if (set_4byte) {
+            cmd[0] = SPI_SE_CMD;
+            cmd[1] = (uint8)((local_base >> 24) & 0xff);
+            cmd[2] = (uint8)((local_base >> 16) & 0xff);
+            cmd[3] = (uint8)((local_base >> 8) & 0xff);
+            cmd[4] = (uint8)((local_base ) & 0xff);
 
-        cmd[0] = SPI_SE_CMD;
-        cmd[1] = (uint8)(local_base >> 16);
-        cmd[2] = (uint8)(local_base >> 8);
-        cmd[3] = (uint8)local_base;
+            if (spi_transaction(cmd,5,NULL,0) != SYS_OK) {
+                rv = SYS_ERR;
+                goto out;
+            }
+        } else
+#endif
+        {
+            cmd[0] = SPI_SE_CMD;
+            cmd[1] = (uint8)(local_base >> 16);
+            cmd[2] = (uint8)(local_base >> 8);
+            cmd[3] = (uint8)local_base;
 
-        if (spi_transaction(cmd,4,NULL,0) != SYS_OK) {
-            rv = SYS_ERR;
-            goto out;
+            if (spi_transaction(cmd,4,NULL,0) != SYS_OK) {
+                rv = SYS_ERR;
+                goto out;
+            }
         }
 
         /* Wait for Sector Erase done */  
@@ -525,7 +580,11 @@ out:
         }
     /* Bit 0 = Write-in-Progress */
     } while(data & 0x01);
-    
+#if CFG_FLASH_4BYTE_ADDR_ENABLED
+    if (set_4byte) {
+        m25lxx_set_4byte_mode(dev, 0);
+    }
+#endif
     bspi_flush_prefetch_buffers();
     SYS_REG_WRITE32(BCHP_BSPI_MAST_N_BOOT_CTRL,0);
     ENTER_BSPI_DELAY(10);
@@ -555,7 +614,11 @@ sys_error_t m25lxx_program(flash_dev_t *dev,
 
     while(SYS_REG_READ32(BCHP_BSPI_BUSY_STATUS));
     SYS_REG_WRITE32(BCHP_BSPI_MAST_N_BOOT_CTRL,1);
-
+#if CFG_FLASH_4BYTE_ADDR_ENABLED
+        if (set_4byte) {
+            m25lxx_set_4byte_mode(dev, 1);
+        }
+#endif
     /* Perform page program operations. */
     while (tx_bytes_left) {
         tx_bytes = M25LXX_PAGE_SIZE - (((uint32)local_base) & (M25LXX_PAGE_SIZE - 1));
@@ -635,7 +698,11 @@ out:
         }
     /* Bit 0 = Write-in-Progress */
     } while(rx_data & 0x01);
-
+#if CFG_FLASH_4BYTE_ADDR_ENABLED
+        if (set_4byte) {
+            m25lxx_set_4byte_mode(dev, 0);
+        }
+#endif
     bspi_flush_prefetch_buffers();
     SYS_REG_WRITE32(BCHP_BSPI_MAST_N_BOOT_CTRL,0);
     ENTER_BSPI_DELAY(10);
@@ -650,7 +717,7 @@ sys_error_t m25lxx_read(flash_dev_t *dev,
     hsaddr_t local_base = base;
     uint8* rx_ptr = (uint8*)data;
     uint32 rx_bytes_left = (uint32) len;
-    uint8 cmd[4];
+    uint8 cmd[5];
     sys_error_t rv = SYS_OK;
     
 #if  defined(__SIM__) || (CONFIG_EMULATION==1)
@@ -664,17 +731,36 @@ sys_error_t m25lxx_read(flash_dev_t *dev,
 
     while(SYS_REG_READ32(BCHP_BSPI_BUSY_STATUS));
     SYS_REG_WRITE32(BCHP_BSPI_MAST_N_BOOT_CTRL,1);
-
+#if CFG_FLASH_4BYTE_ADDR_ENABLED
+        if (set_4byte) {
+            m25lxx_set_4byte_mode(dev, 1);
+        }
+#endif
     cmd[0] = SPI_READ_CMD;
     /* Perform page program operations. */
     while (rx_bytes_left) {
-        cmd[1] = (uint8)(local_base >> 16);
-        cmd[2] = (uint8)(local_base >> 8);
-        cmd[3] = (uint8)local_base;
+#if CFG_FLASH_4BYTE_ADDR_ENABLED
+        if (set_4byte) {
+            cmd[1] = (uint8)((local_base >> 24) & 0xff);
+            cmd[2] = (uint8)((local_base >> 16) & 0xff);
+            cmd[3] = (uint8)((local_base >> 8) & 0xff);
+            cmd[4] = (uint8)((local_base ) & 0xff);
 
-        if (spi_transaction(cmd,4,rx_ptr,1) != SYS_OK) {
-            rv = SYS_ERR;
-            goto out;
+            if (spi_transaction(cmd,5,rx_ptr,1) != SYS_OK) {
+                rv = SYS_ERR;
+                goto out;
+            }
+        } else
+#endif
+        {
+            cmd[1] = (uint8)(local_base >> 16);
+            cmd[2] = (uint8)(local_base >> 8);
+            cmd[3] = (uint8)local_base;
+
+            if (spi_transaction(cmd,4,rx_ptr,1) != SYS_OK) {
+                rv = SYS_ERR;
+                goto out;
+            }
         }
         /* Update counters and data pointers for the next page. */
         local_base++;
@@ -682,6 +768,11 @@ sys_error_t m25lxx_read(flash_dev_t *dev,
         rx_bytes_left--;
     }
 out:
+#if CFG_FLASH_4BYTE_ADDR_ENABLED
+        if (set_4byte) {
+            m25lxx_set_4byte_mode(dev, 0);
+        }
+#endif
     SYS_REG_WRITE32(BCHP_BSPI_MAST_N_BOOT_CTRL,0);
     ENTER_BSPI_DELAY(10);
     return rv;

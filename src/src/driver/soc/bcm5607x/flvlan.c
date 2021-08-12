@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.f
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.f
  */
 
 #include "system.h"
@@ -20,13 +20,13 @@ static vlan_type_t fl_vlan_type = VT_COUNT;
  *  Purpose :
  *      Set egr_mask in EGR_VLAN.
  *
- *  Parameters : 
+ *  Parameters :
  *
  *  Return :
  *
  *  Note :
  */
-sys_error_t 
+sys_error_t
 bcm5607x_pvlan_egress_set(uint8 unit, uint8 lport, pbmp_t lpbmp)
 {
     sys_error_t rv = SYS_OK;
@@ -90,7 +90,7 @@ bcm5607x_pvlan_egress_set(uint8 unit, uint8 lport, pbmp_t lpbmp)
  *  Purpose :
  *      Get egr_mask in EGR_VLAN.
  *
- *  Parameters : 
+ *  Parameters :
  *
  *  Return :
  *
@@ -110,7 +110,7 @@ bcm5607x_pvlan_egress_get(uint8 unit, uint8 lport, pbmp_t *lpbmp)
     return rv;
 }
 
-sys_error_t 
+sys_error_t
 bcm5607x_qvlan_port_set(uint8 unit, uint16  vlan_id, pbmp_t lpbmp, pbmp_t tag_lpbmp)
 {
     sys_error_t rv = SYS_OK;
@@ -168,7 +168,7 @@ bcm5607x_qvlan_port_get(uint8 unit, uint16  vlan_id, pbmp_t *lpbmp, pbmp_t *tag_
  *  Purpose :
  *      Create vlan.
  *
- *  Parameters : 
+ *  Parameters :
  *
  *  Return :
  *
@@ -215,7 +215,7 @@ bcm5607x_vlan_create(uint8 unit, vlan_type_t type, uint16  vlan_id)
  *  Purpose :
  *      Destroy vlan.
  *
- *  Parameters : 
+ *  Parameters :
  *
  *  Return :
  *
@@ -245,7 +245,7 @@ bcm5607x_vlan_destroy(uint8 unit, uint16  vlan_id)
  *  Purpose :
  *      Set current vlan type.
  *
- *  Parameters : 
+ *  Parameters :
  *
  *  Return :
  *
@@ -259,89 +259,15 @@ bcm5607x_vlan_type_set(uint8 unit, vlan_type_t type)
     VLANm_t vlan;
     EGR_VLANm_t egr_vlan;
     PORTm_t port;
-    vlan_list_t *this_vlan;
     sys_error_t rv = SYS_OK;
 
     if ((type == VT_NONE) || (type == VT_PORT_BASED)) {
-        /* Don't have to do this again if it was port based vlan */
-        if ((fl_vlan_type == VT_NONE) || (fl_vlan_type == VT_PORT_BASED)) { 
-             fl_vlan_type = type;
-             return SYS_OK;
-        }
+        /* Only support 802.1Q VLAN mode in FL UM */
+        return SYS_ERR_PARAMETER;
 
-        /* Enable USE_LEARN_VID and set LEARN_VID as '1' */
-        READ_VLAN_CTRLr(unit, vlan_ctrl);
-        VLAN_CTRLr_LEARN_VIDf_SET(vlan_ctrl, 1);
-        VLAN_CTRLr_USE_LEARN_VIDf_SET(vlan_ctrl, 1);
-        WRITE_VLAN_CTRLr(unit,vlan_ctrl); 
-
-        /* clear EN_IFILTER in PORT_TAB */ 
-        for (i = BCM5607X_LPORT_MIN; i <= BCM5607X_LPORT_MAX; i++) {
-            READ_PORTm(unit, i, port);
-            PORTm_EN_IFILTERf_SET(port, 0);
-            WRITE_PORTm(unit, i, port); 
-        }
-
-        /* STG=1, VALID=1, PBMP=all except CPU, VLAN_PROFILE_PTR=0 */
-        VLANm_CLR(vlan);
-        VLANm_PORT_BITMAPf_SET(vlan, SOC_PBMP(BCM5607X_ALL_PORTS_MASK));
-        VLANm_STGf_SET(vlan, 1);
-        VLANm_VALIDf_SET(vlan, 1);
-        VLANm_VLAN_PROFILE_PTRf_SET(vlan, 0);
-        /* create 2-4094 vlans */
-        for (i = 2; i <= 4094; i++) {
-             WRITE_VLANm(unit, i, vlan);
-        }
-
-        /* All ports(exclude cpu) in vlan 2-4094 are tagged, STG=1 */
-        EGR_VLANm_CLR(egr_vlan);
-        EGR_VLANm_PORT_BITMAPf_SET(egr_vlan, SOC_PBMP(BCM5607X_ALL_PORTS_MASK));
-        EGR_VLANm_STGf_SET(egr_vlan, 1);
-        EGR_VLANm_VALIDf_SET(egr_vlan, 1);
-        for (i = 2; i <= 4094; i++) {
-            /* create vlan in EGR_VLAN */
-            WRITE_EGR_VLANm(unit, i, egr_vlan);
-        }
-
-        if (type == VT_PORT_BASED) {
-            if (VLAN_DEFAULT != 1){
-                this_vlan = vlan_info.head;
-                if (this_vlan == NULL) {
-                    sal_printf("%s..:%s..:this_vlan == NULL. Should not happen after brdimpl_vlan_reset()\n", __FILE__, __func__);
-                    return SYS_ERR_OUT_OF_RESOURCE;
-                }
-                this_vlan->vlan_id = 1;
-
-                /* Re-overwrite the default VLAN to 1 for VT_PORT_BASED */
-                /* Setup default vlan */
-                /* STG=1, VALID=1, PBMP=all except CPU, VLAN_PROFILE_PTR=0 */
-                VLANm_CLR(vlan);
-                VLANm_PORT_BITMAPf_SET(vlan, SOC_PBMP(BCM5607X_ALL_PORTS_MASK));
-                VLANm_STGf_SET(vlan, 1);
-                VLANm_VALIDf_SET(vlan, 1);
-                VLANm_VLAN_PROFILE_PTRf_SET(vlan, 0);
-                WRITE_VLANm(unit, 1, vlan);
-
-                /* Setup EGR_VLAN, all ports untagged(exclude cpu) */
-                EGR_VLANm_CLR(egr_vlan);
-                EGR_VLANm_PORT_BITMAPf_SET(egr_vlan, SOC_PBMP(BCM5607X_ALL_PORTS_MASK));
-                EGR_VLANm_UT_PORT_BITMAPf_SET(egr_vlan, SOC_PBMP(BCM5607X_ALL_PORTS_MASK));
-                EGR_VLANm_STGf_SET(egr_vlan, 1);
-                EGR_VLANm_VALIDf_SET(egr_vlan, 1);
-                WRITE_EGR_VLANm(unit, 1, egr_vlan);
-
-                /* Reset PVID to default vlan */
-                for (i = BCM5607X_LPORT_MIN; i <= BCM5607X_LPORT_MAX; i++) {
-                    rv |= READ_PORTm(unit, i, port);
-                    PORTm_PORT_VIDf_SET(port, this_vlan->vlan_id);
-                    rv |= WRITE_PORTm(unit, i, port);
-                }
-        
-            }
-        }
     } else if (type == VT_DOT1Q) {
         /* Don't have to do this again if it was 802.1Q vlan */
-        if (fl_vlan_type == VT_DOT1Q) { 
+        if (fl_vlan_type == VT_DOT1Q) {
              fl_vlan_type = type;
              return SYS_OK;
         }
@@ -350,13 +276,13 @@ bcm5607x_vlan_type_set(uint8 unit, vlan_type_t type)
         READ_VLAN_CTRLr(unit, vlan_ctrl);
         VLAN_CTRLr_LEARN_VIDf_SET(vlan_ctrl, 0);
         VLAN_CTRLr_USE_LEARN_VIDf_SET(vlan_ctrl, 0);
-        WRITE_VLAN_CTRLr(unit,vlan_ctrl); 
+        WRITE_VLAN_CTRLr(unit,vlan_ctrl);
 
-        /* Enable EN_IFILTER to check VLAN membership */ 
+        /* Enable EN_IFILTER to check VLAN membership */
         for (i = BCM5607X_LPORT_MIN; i <= BCM5607X_LPORT_MAX; i++) {
             READ_PORTm(unit, i, port);
             PORTm_EN_IFILTERf_SET(port, 1);
-            WRITE_PORTm(unit, i, port); 
+            WRITE_PORTm(unit, i, port);
         }
 
         /* Clear VLAN and EGR_VLAN tables */
@@ -384,7 +310,7 @@ bcm5607x_vlan_type_set(uint8 unit, vlan_type_t type)
  *  Purpose :
  *      Clear all vlan related tables..
  *
- *  Parameters : 
+ *  Parameters :
  *
  *  Return :
  *
@@ -422,7 +348,7 @@ bcm5607x_vlan_reset(uint8 unit)
 	for (lagid = 0; lagid < BOARD_MAX_NUM_OF_LAG; lagid++) {
 		 READ_TRUNK_BITMAPm(0, lagid, trunk_bitmap);
 		 PBMP_CLEAR(lag_pbmp[lagid]);
-		 TRUNK_BITMAPm_TRUNK_BITMAPf_GET(trunk_bitmap, PBMP_PTR(lag_pbmp[lagid])); 
+		 TRUNK_BITMAPm_TRUNK_BITMAPf_GET(trunk_bitmap, PBMP_PTR(lag_pbmp[lagid]));
 	}
 #endif /* CFG_SWITCH_LAG_INCLUDED */
 

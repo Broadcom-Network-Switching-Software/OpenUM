@@ -3,15 +3,120 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef _BCM5607X_H_
 #define _BCM5607X_H_
 
+#ifdef CFG_COE_INCLUDED
+#define MAX_COE_RULES_NUMBER        (256)
+#define COE_OUT_OF_RANGE(i, min, max) (((i < min) || (i > max)) ? 1 : 0)
+extern int coe_permitted_class_id;
+
+extern sys_error_t
+fl_coe_active_port_class(int classid);
+extern sys_error_t
+fl_coe_disable_l2_learn(uint8 lport);
+extern sys_error_t
+fl_coe_disable_tpid(uint8 lport);
+extern sys_error_t
+fl_coe_l2mc_add_pbmp(uint8 lport1, uint8 lport2, uint32 *index);
+extern sys_error_t
+fl_coe_egr_header_encap_data_add(uint32 data, uint32 *index);
+extern sys_error_t
+fl_coe_custom_header_mask_set(uint32 data);
+extern sys_error_t
+fl_coe_custom_header_match_add(uint32 data, uint32 *index);
+extern sys_error_t
+fl_coe_enable_custom_header_parser(uint8 lport, int enable);
+extern sys_error_t
+fl_coe_egr_custom_header_enable_set(uint8 lport, int enable);
+extern sys_error_t
+fl_coe_ifp_init(void);
+extern sys_error_t
+fl_coe_linecard_upstream_ifp_qualify(
+    int front_port,
+    int encap_id,
+    int l2mc_index);
+extern sys_error_t
+fl_coe_linecard_downstream_ifp_qualify(
+    uint32 custom_header,
+    uint32 custom_header_mask,
+    int bp_port,
+    int l2mc_index);
+extern sys_error_t
+board_coe_linecard_upstream_frontport_to_backplane_config(
+    uint8 act_bp_port,
+    uint8 stb_bp_port,
+    uint8 front_port,
+    int32 channel_id);
+extern sys_error_t
+board_coe_linecard_downstream_backplane_to_frontport_config(
+    uint8 bp_port,
+    uint8 front_port,
+    int32 channel_id);
+extern sys_error_t
+fl_coe_linecard_downstream_ifp_default_drop(void);
+extern sys_error_t
+board_coe_active_port_class(int classid);
+extern sys_error_t
+fl_coe_config_init(void);
+
+extern sys_error_t
+fl_coe_uplink_ifp_qualify_source_port_and_l2mc(
+    int source_port,
+    int l2mc_index,
+    int active_class_id);
+
+/*!
+ * COE chassis/pass-through mode
+ */
+typedef enum coe_mode_e {
+    COE_MODE_CHASSIS = 0,
+    COE_MODE_PASSTHRU,
+    COE_MODE_NOT_DEFINED
+} coe_mode_t;
+extern coe_mode_t coe_mode;
+
+/*!
+ * COE traffic direction in chassis mode
+ */
+typedef enum chassis_dir_s {
+    CH_UPSTREAM,
+    CH_DOWNSTREAM
+} chassis_dir_t;
+
+/*!
+ * COE chassis configuration record
+ */
+typedef struct coe_rule_table_e {
+    int valid;
+    chassis_dir_t dir;
+    uint8 bp_port1;
+    uint8 bp_port2;
+    uint8 front_port;
+    int32 channel_id;
+    uint32 custom_header;
+    uint32 custom_header_mask;
+    int fp_entry_low;
+    int fp_entry_high;
+    int fp_counter_table_index;
+    int default_drop;
+    int active_class_id;
+} coe_rule_table_t;
+
+extern coe_rule_table_t coe_rule_table[MAX_COE_RULES_NUMBER];
+extern int coe_ifp_slice_number;
+extern int coe_ifp_rule_number;
+extern int coe_ifp_counter_table_index;
+extern int coe_permitted_class_id;
+
+#endif
+
 #include "auto_generated/bcm5607x_defs.h"
 #include <intr.h>
-
+#include <mcs_internal.h>
 #ifndef __LINUX__
 #define READCSR(x)   SYS_REG_READ32(x)
 #define WRITECSR(x,v) SYS_REG_WRITE32(x,v)
@@ -46,6 +151,9 @@
 
 #define _FL_ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
+/* The default max frame size */
+#define JUMBO_FRM_SIZE (12288)
+
 /* Schannel opcode */
 #define SC_OP_RD_MEM_CMD         0x07
 #define SC_OP_RD_MEM_ACK         0x08
@@ -60,6 +168,9 @@
 #define SC_OP_TBL_DEL_CMD        0x26
 #define SC_OP_TBL_LOOKUP_CMD     0x28
 
+/* For switching schan channel in interrupt context only. */
+#define BCM5607X_SCHAN_CH_DEFAULT                       0
+#define BCM5607X_SCHAN_CH_INTR                          1
 
 /* FP_TCAM index */
 #define MDNS_TO_CPU_IDX                (0)
@@ -68,8 +179,15 @@
 #define RATE_IGR_IDX                   (64 /* 64 port entries */ + 64 /* use second half */)
 
 #define QOS_BASE_IDX                   (2 * ENTRIES_PER_SLICE)
+
+/* MPLS_EXP fp entries index */
+#define MPLS_EXP_IDX                   (4 * ENTRIES_PER_SLICE) + 8
+
 /* 802.1p higher than DSCP fp entries index */
-#define DOT1P_BASE_IDX                 ((2 * ENTRIES_PER_SLICE) + 64 /* 64 port entries */ + 64 /* use second half */)
+#define DOT1P_BASE_IDX                 (4 * ENTRIES_PER_SLICE)
+
+/* MPLS_EXP_w_SVtag fp entries index */
+#define MPLS_EXP_SVTAG_IDX             (5* ENTRIES_PER_SLICE)
 
 /* Loop Detect, per port from LOOP_COUNT_IDX + MIN~ */
 #define LOOP_COUNT_IDX                 ( 3 * ENTRIES_PER_SLICE)
@@ -79,31 +197,57 @@
 #define TX_CH                    0
 #define RX_CH1                   1
 
-
+/* Semaphore lock between R5 and host processor. */
 #if defined(CFG_SOC_SEMAPHORE_INCLUDED) &&  !defined(__SIM__)
-#define SCHAN_LOCK(unit) \
-        do { if (!READCSR(R_CMIC_SEMAPHORE_3_SHADOW))\
-                 while (!READCSR(R_CMIC_SEMAPHORE_1)); } while(0)
-#define SCHAN_UNLOCK(unit) \
-        do { if (!READCSR(R_CMIC_SEMAPHORE_3_SHADOW))\
-               WRITECSR(R_CMIC_SEMAPHORE_1, 0); } while(0)
-#define MIIM_LOCK(unit) \
-        do { while (!READCSR(R_CMIC_SEMAPHORE_2)); } while(0)
-#define MIIM_UNLOCK(unit) \
-        do { WRITECSR(R_CMIC_SEMAPHORE_2, 0); } while(0)
+
+#define SCHAN_LOCK(unit, ch)                                                      \
+    do {                                                                          \
+        if (!READCSR(R_CMIC_SEMAPHORE_3_SHADOW)) {                                \
+             while (!READCSR(R_CMIC_SEMAPHORE(ch != BCM5607X_SCHAN_CH_DEFAULT))); \
+        }                                                                         \
+    } while(0)
+
+#define SCHAN_UNLOCK(unit, ch)                                                    \
+    do {                                                                          \
+        if (!READCSR(R_CMIC_SEMAPHORE_3_SHADOW)) {                                \
+            WRITECSR(R_CMIC_SEMAPHORE(ch != BCM5607X_SCHAN_CH_DEFAULT), 0);       \
+    } while(0)
+
+#define MIIM_LOCK(unit)                                       \
+    do {                                                      \
+        while (!READCSR(R_CMIC_SEMAPHORE_4));                 \
+    } while(0)                                                \
+
+#define MIIM_UNLOCK(unit)                                     \
+    do {                                                      \
+        WRITECSR(R_CMIC_SEMAPHORE_4, 0);                      \
+    } while(0)                                                \
+
 /* Access serdes registers through s-channel */
-#define MIIM_SCHAN_LOCK(unit) \
-        do { while (!READCSR(R_CMIC_SEMAPHORE_3)); } while(0)
+#define MIIM_SCHAN_LOCK(unit)                                 \
+    do {                                                      \
+        while (!READCSR(R_CMIC_SEMAPHORE_3));                 \
+    } while(0)
+
 #define MIIM_SCHAN_UNLOCK(unit) \
-        do { WRITECSR(R_CMIC_SEMAPHORE_3, 0); } while(0)
+    do {                                                      \
+        WRITECSR(R_CMIC_SEMAPHORE_3, 0);                      \
+    } while(0)
+
 #else
-#define SCHAN_LOCK(unit)
-#define SCHAN_UNLOCK(unit)
+#define SCHAN_LOCK(unit, ch)
+#define SCHAN_UNLOCK(unit, ch)
 #define MIIM_LOCK(unit)
 #define MIIM_UNLOCK(unit)
 #define MIIM_SCHAN_LOCK(unit)
 #define MIIM_SCHAN_UNLOCK(unit)
 #endif /* CFG_SOC_SEMAPHORE_INCLUDED */
+
+#define CACHE_INVALID() do { \
+                            asm("mcr p15,0,r0,c7,c5,0"); \
+                            asm("mcr p15,0,r0,c15,c5,0"); \
+                            asm("mcr p15,0,r0,c7,c5,6"); \
+                        } while(0)
 
 #define LED_0_PORT_STATUS_OFFSET(p)   CMIC_LEDUP0_DATA_RAM(0xa0 + (p))
 #define LED_1_PORT_STATUS_OFFSET(p)   CMIC_LEDUP1_DATA_RAM(0xa0 + (p))
@@ -129,6 +273,8 @@ extern void bcm5607x_eee_init(void);
 #endif /* CFG_SWITCH_EEE_INCLUDED */
 /* End of EEE */
 
+/* ARM ticks function. */
+extern uint32 _getticks(void);
 /* phy bcm542xx functions */
 extern int bcm542xx_phy_cl45_reg_read(uint8 unit, uint8 port,
                       uint8 dev_addr, uint16 reg_addr, uint16 *p_value);
@@ -177,12 +323,15 @@ enum soc_fl_port_mode_e {
     SOC_FL_PORT_MODE_TRI_023 = 2,
     SOC_FL_PORT_MODE_DUAL = 3,
     SOC_FL_PORT_MODE_SINGLE = 4,
-    SOC_FL_PORT_MODE_TDM_DISABLE = 5
+    SOC_FL_PORT_MODE_COUNT = 5
 };
 
-#define _FL_MAX_TSC_COUNT 7
-#define _FL_MAX_QTC_COUNT 3
-#define FL_SERDES_CORE_COUNT (_FL_MAX_TSC_COUNT + _FL_MAX_QTC_COUNT)
+#define _FL_MAX_TSC_COUNT (7)
+#define _FL_MAX_QTC_COUNT (3)
+#define FL_SERDES_CORE_COUNT (_FL_MAX_TSC_COUNT)
+
+#define FL_TSC_TSCF0_IDX              (3)
+
 typedef enum qtc_interface_s {
     QTC_INTERFACE_QSGMII = 1,
     QTC_INTERFACE_SGMII = 2,
@@ -267,9 +416,6 @@ typedef struct firelight_sku_info_s {
     int                  freq;
     const int            *p2l_mapping;
     const int            *speed_max;
-    qtc_interface_t      qtc_interface_default;
-    tsce_interface_t     tsce_interface_default;
-    tscf_interface_t     tscf_interface_default;
 } firelight_sku_info_t;
 
 extern const firelight_sku_info_t *sku_port_config;
@@ -297,7 +443,7 @@ extern sys_error_t bcm5607x_rx_fill_buffer(uint8 unit,
 extern sys_error_t bcm5607x_tx(uint8 unit, soc_tx_packet_t *pkt);
 extern sys_error_t bcm5607x_link_status(uint8 unit, uint8 port, BOOL *link);
 extern void bcm5607x_rxtx_stop(void);
-extern void bcm5607x_ep_to_cpu_hdr_dump(uint8 unit, char *prefix, void *addr);
+extern void cmicx_ep_to_cpu_hdr_dump(uint8 unit, char *prefix, void *addr);
 
 /* FP_TCAM encode/decode utility */
 extern void bcm5607x_dm_to_xy(uint32 *dm_entry, uint32 *xy_entry, int data_words, int bit_length);
@@ -358,6 +504,22 @@ extern sys_error_t bcm5607x_phy_reg_set(uint8 unit, uint8 port, uint16 reg_addr,
 /* Interrupt system */
 extern sys_error_t bcm5607x_intr_init(int unit);
 
+/* MCS driver. */
+extern int bcm5607x_mcs_drv_init(int unit);
+extern const mcs_drv_t* cmicx_mcs_base_drv_get(int unit);
+
+#ifdef CFG_M0SSQ_INCLUDED
+/* M0SSQ driver. */
+extern int bcm5607x_m0ssq_drv_init(int unit);
+#endif
+
+#ifdef CFG_LED_MICROCODE_INCLUDED
+/* LED driver. */
+extern int bcm5607x_led_drv_init(int unit);
+#endif
+
+extern int bcm5607x_lm_drv_init(int unit);
+
 /* Initialization */
 extern int bcm5607x_pcm_software_init(int unit);
 extern sys_error_t bcm5607x_sw_init(void);
@@ -366,7 +528,7 @@ extern void bcm5607x_qos_init(void);
 extern void bcm5607x_rate_init(void);
 extern void bcm5607x_loop_detect_init(void);
 extern void bcm5607x_rxtx_init(void);
-extern void bcm5607x_loopback_enable(uint8 unit, uint8 port, int loopback_mode);
+extern sys_error_t bcm5607x_loopback_enable(uint8 unit, uint8 port, int loopback_mode);
 extern sys_error_t bcm5607x_mdns_enable_set(uint8 unit, BOOL enable);
 extern sys_error_t bcm5607x_mdns_enable_get(uint8 unit, BOOL *enable);
 
@@ -427,7 +589,7 @@ typedef struct
 
 extern bcm5607x_sw_info_t fl_sw_info;
 
-#define COS_QUEUE_NUM                   (4)
+#define COS_QUEUE_NUM                   (8)
 #define MAXBUCKETCONFIG_NUM             (8)
 #define COSLCCOUNT_NUM                  (64)
 #define COSLCCOUNT_QGROUP_NUM           (8)
@@ -445,15 +607,11 @@ extern bcm5607x_sw_info_t fl_sw_info;
 #define SOC_FL_LEGACY_QUEUE_NUM 8
 #define SOC_FL_2LEVEL_QUEUE_NUM SOC_FL_QLAYER_COSQ_PER_PORT_NUM
 
-
 /* Mask of all logical ports */
 #define BCM5607X_ALL_PORTS_MASK        (fl_sw_info.soc_um_control.info.all.bitmap)
 #define BCM5607X_ALL_PORTS             (fl_sw_info.soc_um_control.info.all.bitmap)
-/*
- * Macros to get the device block type, block index and index
- * within block for a given port
- */
-#define _FL_ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+
+/* For firelight, SOC_PORT_SPEED_INIT will reflect the current speed. */
 #define SOC_PORT_SPEED_INIT(port)        (fl_sw_info.soc_um_control.info.port_init_speed[(port)])
 #define SOC_PORT_SPEED_MAX(port)         (fl_sw_info.soc_um_control.info.port_speed_max[(port)])
 #define SOC_PORT_LANE_NUMBER(port)       (fl_sw_info.soc_um_control.info.port_num_lanes[(port)])
@@ -472,6 +630,10 @@ extern bcm5607x_sw_info_t fl_sw_info;
 #define SOC_INFO(unit)                   (fl_sw_info.soc_um_control.info)
 #define SOC_CONTROL(unit)                (fl_sw_info.soc_um_control)
 
+/*
+ * Macros to get the device block type, block index and index
+ * within block for a given port
+ */
 #define SOC_PMQ_BLOCK_INDEX(port)        (fl_sw_info.pmq_block_port_id[(port)])
 #define SOC_PORT_BLOCK_TYPE(port)        (fl_sw_info.port_block_type[(port)])
 #define SOC_PORT_BLOCK(port)             (fl_sw_info.port_block_id[(port)])
@@ -578,7 +740,7 @@ typedef struct core_mode_s {
    int lane_number;
 } core_mode_t;
 
-#if CFG_POLLED_INTR && defined(CFG_INTR_INCLUDED)
+#if (CFG_POLLED_INTR && defined(CFG_INTR_INCLUDED)) || defined(__LINUX__)
 #define POLLED_IRQ()   sys_intr_entry()
 #else
 #define POLLED_IRQ()
@@ -609,4 +771,26 @@ extern sys_error_t bcm5607x_time_synce_clock_source_control_get(uint8 unit,
                    int *value);
 #endif /* CFG_SWITCH_SYNCE_INCLUDED */
 
+extern sys_error_t bcm5607x_port_frame_max_set(int unit, int lport, int size);
+extern sys_error_t bcm5607x_port_frame_max_get(int unit, int lport, int *size);
+extern sys_error_t bcm5607x_port_class_get(int unit, int lport, port_class_t pclass, uint32 *pclass_id);
+extern sys_error_t bcm5607x_port_class_set(int unit, int lport, port_class_t pclass, uint32 pclass_id);
+extern sys_error_t bcm5607x_port_control_get(int unit, int lport, int type, int *value);
+extern sys_error_t bcm5607x_port_control_set(int unit, int lport, int type, int value);
+
+#ifdef CFG_SWITCH_TIMESYNC_INCLUDED
+extern sys_error_t bcm5607x_timesync_init(uint8 unit);
+extern sys_error_t bcm5607x_port_timesync_config_set(uint8 unit, uint8 lport,
+                            int config_count, bcm_port_timesync_config_t *config_array);
+extern sys_error_t bcm5607x_port_timesync_config_get(uint8 unit, uint8 lport,
+                            int array_size, bcm_port_timesync_config_t *config_array,
+                            int *array_count);
+extern sys_error_t bcm5607x_port_phy_timesync_enable_set(uint8 unit, uint8 lport, int en);
+extern sys_error_t bcm5607x_port_phy_timesync_enable_get(uint8 unit, uint8 lport, int *en);
+extern sys_error_t bcm5607x_port_control_phy_timesync_set(uint8 unit, uint8 lport,
+                            bcm_port_control_phy_timesync_t type,
+                            uint64 value);
+extern sys_error_t bcm5607x_port_timesync_tx_info_get(uint8 unit, uint8 lport,
+                            bcm_port_timesync_tx_info_t *tx_info);
+#endif /* CFG_SWITCH_TIMESYNC_INCLUDED */
 #endif /* _BCM5607X_H_ */

@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifdef __C51__
@@ -20,8 +20,8 @@
  *   Local variable.
  */
 static sys_intr_drv_t *intr_drv = NULL;
-
-/*****************************************
+uint32 sys_intr_entry_tick;
+/****************************************
  *   Public Function.
  */
 sys_error_t
@@ -34,6 +34,14 @@ sys_intr_drv_init(sys_intr_drv_t *drv)
 sys_error_t
 sys_intr_entry(void)
 {
+   uint32 (*get_ticks) (void) = _getticks;
+
+   sys_intr_entry_tick = get_ticks();
+
+#ifdef CFG_INTR_CACHE_INVALID_INCLUDED
+    /* Cache invalid. */
+    CACHE_INVALID();
+#endif
 
    /* Check if device-specific interrupt callback is installed. */
    if (intr_drv == NULL ||

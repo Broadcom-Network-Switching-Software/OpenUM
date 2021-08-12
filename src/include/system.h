@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef _SYSTEM_H_
@@ -17,6 +17,8 @@
 #include "board.h"
 #include "soc/pbmp.h"
 #include "soc/soc.h"
+#include "soc/symbol.h"
+#include "soc/chip.h"
 #include "sal_config.h"
 #if CFG_XGS_CHIP
 #ifndef CFG_PCM_SUPPORT_INCLUDED

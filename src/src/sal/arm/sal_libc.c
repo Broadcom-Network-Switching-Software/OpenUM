@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #include "system.h"
@@ -113,6 +113,7 @@ void* memset( void* buffer, int ch, size_t count ) {
 
 }
 
+size_t sal_strlen(const char *str) __attribute__((section(".2ram")));
 size_t sal_strlen(const char *str)
 {
     size_t cnt = 0;
@@ -219,6 +220,7 @@ sal_strcspn(const char *s1, const char *s2)
     return s1 - s;
 }
 
+char *sal_strchr(const char *dest,int c) __attribute__((section(".2ram")));
 char *sal_strchr(const char *dest,int c)
 {
     while (*dest) {
@@ -228,6 +230,7 @@ char *sal_strchr(const char *dest,int c)
     return NULL;
 }
 
+char *sal_strcpy(char *dest,const char *src) __attribute__((section(".2ram")));
 char *sal_strcpy(char *dest,const char *src)
 {
     char *ptr = dest;
@@ -369,6 +372,36 @@ sal_strstr(const char *s1, const char *s2)
     return (char *) NULL;
 }
 
+char *
+sal_strcasestr(const char *s1, const char *s2)
+{
+    if (*s1 == '\0') {
+        if (*s2) {
+            return (char *) NULL;
+        } else {
+            return (char *) s1;
+        }
+    }
+
+    while(*s1) {
+        int i;
+
+        for (i=0; ; i++) {
+            if (s2[i] == '\0') {
+                return (char *) s1;
+            }
+
+            if (sal_toupper(s2[i]) != sal_toupper(s1[i])) {
+                break;
+            }
+        }
+        s1++;
+    }
+
+    return (char *) NULL;
+}
+
+
 /*
  * A simple random number generator without floating pointer operations
  */
@@ -448,7 +481,7 @@ sal_strtol(const char *nptr, char **endptr, int base)
     if (negative) {
         x = -x;
     }
-    
+
     return x;
 }
 
@@ -503,7 +536,62 @@ sal_strtoul(const char *nptr, const char **endptr, int base)
     if (negative) {
         x = -x;
     }
-    
+
+    return x;
+}
+
+uint64
+sal_strtoull(const char *nptr, const char **endptr, int base)
+{
+    uint64 x = 0;
+    int digit;
+    BOOL negative = FALSE;
+
+    while (isspace(*nptr)){
+        nptr++;
+    }
+
+    if (*nptr == '-') {
+        negative = TRUE;
+        nptr++;
+    }
+
+    if (base == 0) {
+        if ((*nptr == '0') && ((*(nptr+1) == 'x') || (*(nptr+1) == 'X'))) {
+            base = 16;
+            nptr += 2;
+        } else {
+            base = 10;
+        }
+    }
+
+    while (*nptr) {
+        if ((*nptr >= '0') && (*nptr <= '9')) {
+            digit = *nptr - '0';
+        } else if ((*nptr >= 'A') && (*nptr <= 'F')) {
+            digit = 10 + *nptr - 'A';
+        } else if ((*nptr >= 'a') && (*nptr <= 'f')) {
+            digit = 10 + *nptr - 'a';
+        } else {
+            break;
+        }
+
+        if (digit >= base) {
+            break;
+        }
+        x *= base;
+        x += digit;
+        nptr++;
+    }
+
+    if (endptr) {
+        *endptr = (char *)nptr;
+    }
+
+    if (negative) {
+        x = -x;
+    }
+
     return x;
 }
 
@@ -546,6 +634,8 @@ sal_strtoul(const char *nptr, const char **endptr, int base)
  * int sal_sprintf(char *buf, const char *fmt, ...);
  */
 
+void sal_ltoa(char *buf, unsigned long num, int base, int caps, int prec)
+                     __attribute__((section(".2ram")));
  void
  sal_ltoa(char *buf,             /* Large enough result buffer   */
       unsigned long num,         /* Number to convert            */
@@ -554,20 +644,20 @@ sal_strtoul(const char *nptr, const char **endptr, int base)
       int prec)                  /* Precision (minimum digits)   */
  {
      char        tmp[68], *s, *digits;
- 
+
      digits = (caps ? "0123456789ABCDEF" : "0123456789abcdef");
- 
+
      s = &tmp[sizeof (tmp) - 1];
- 
+
      for (*s = 0; num || s == &tmp[sizeof (tmp) - 1]; num /= base, prec--)
          *--s = digits[num % base];
- 
+
      while (prec-- > 0)
          *--s = '0';
      /* coverity[secure_coding] */
      sal_strcpy(buf, s);
  }
- 
+
  void
  sal_itoa(char *buf,             /* Large enough result buffer   */
       uint32 num,                /* Number to convert            */
@@ -578,41 +668,44 @@ sal_strtoul(const char *nptr, const char **endptr, int base)
      sal_ltoa(buf, num, base, caps, prec);
  }
 
- 
+
 #define X_STORE(c) { 	\
 		 if (PTR_TO_INT(bp) < PTR_TO_INT(be))	 \
 			 *bp = (c); 						 \
 		 bp++;								 \
  }
- 
+
 #define X_INF		0x7ffffff0
- 
+
+int sal_vsnprintf(char *buf, size_t bufsize, const char *fmt, va_list ap)
+                    __attribute__((section(".2ram")));
  int sal_vsnprintf(char *buf, size_t bufsize, const char *fmt, va_list ap)
  {
 	 char		 c, *bp, *be;
 	 char				 *p_null = NULL;
 	 char		 *b_inf = p_null - 1;
- 
+
 	 bp = buf;
 	 be = (bufsize == X_INF) ? b_inf : &buf[bufsize - 1];
 
 	 while ((c = *fmt++) != 0) {
 	 int		 width = 0, ljust = 0, plus = 0, space = 0;
-	 int	 altform = 0, prec = 0, half = 0, base = 0;
+	 int	 altform = 0, prec = 0, byte = 0, half = 0, base = 0;
 	 int	 tlong = 0, fillz = 0, plen, pad;
 	 long		 num = 0;
 	 char		 tmp[36], *p = tmp;
 #ifdef COMPILER_HAS_DOUBLE
 	 int prec_given = 0;
 #endif
- 
+
 	 if (c != '%') {
 		 X_STORE(c);
 		 continue;
 	 }
- 
+
 	 for (c = *fmt++; ; c = *fmt++)
 		 switch (c) {
+         case 'b': byte = 1;	 break;
 		 case 'h': half = 1;	 break;
 		 case 'l': tlong = 1;	 break;
 		 case '-': ljust = 1;	 break;
@@ -643,15 +736,15 @@ sal_strtoul(const char *nptr, const char **endptr, int base)
 		 break;
 		 }
 	 break_for:
- 
+
 	 if (width == -1)
 		 width = va_arg(ap,int);
 	 if (prec == -1)
 		 prec = va_arg(ap,int);
- 
+
 	 if (c == 0)
 		 break;
- 
+
 	 switch (c) {
 	 case 'd':
 	 case 'i':
@@ -696,7 +789,9 @@ sal_strtoul(const char *nptr, const char **endptr, int base)
 	 case 'x':
 	 case 'X':
 		 num = tlong ? va_arg(ap, long) : va_arg(ap, int);
-		 if (half)
+         if (byte)
+            num = (int) (unsigned char) num;
+         else if (half)
 		 num = (int) (unsigned short) num;
 			 else if (!tlong)
 				 num = (long) (unsigned int) num;
@@ -724,7 +819,7 @@ sal_strtoul(const char *nptr, const char **endptr, int base)
 	 case 'f':
 		 {
 		 double 	 f;
- 
+
 		 f = va_arg(ap, double);
 		 if (! prec_given)
 			 prec = 6;
@@ -758,7 +853,7 @@ sal_strtoul(const char *nptr, const char **endptr, int base)
 		 X_STORE(c);
 		 continue;
 	 }
- 
+
 	 if (base != 0) {
 		 sal_ltoa(p, num, base, (c == 'X'), prec);
 		 if (prec)
@@ -766,15 +861,15 @@ sal_strtoul(const char *nptr, const char **endptr, int base)
 		 p = tmp;
 		 prec = X_INF;
 	 }
- 
+
 	 if ((plen = sal_strlen(p)) > prec)
 		 plen = prec;
- 
+
 	 if (width < plen)
 		 width = plen;
- 
+
 	 pad = width - plen;
- 
+
 	 while (! ljust && pad-- > 0)
 		 X_STORE(fillz ? '0' : ' ');
 	 for (; plen-- > 0 && width-- > 0; p++)
@@ -782,7 +877,7 @@ sal_strtoul(const char *nptr, const char **endptr, int base)
 	 while (pad-- > 0)
 		 X_STORE(' ');
 	 }
- 
+
 	 if ((be == b_inf) || (bp < be))
 	 *bp = 0;
 	 else
@@ -794,16 +889,16 @@ sal_strtoul(const char *nptr, const char **endptr, int base)
 	 return (bp - buf);
  }
 
- 
+
  int sal_snprintf(char *buf, size_t bufsize, const char *fmt, ...)
  {
 	 va_list	 ap;
 	 int		 r;
- 
+
 	 va_start(ap,fmt);
 	 r = sal_vsnprintf(buf, bufsize, fmt, ap);
 	 va_end(ap);
- 
+
 	 return r;
  }
 
@@ -820,34 +915,23 @@ int sal_sprintf(char *buf, const char *fmt, ...)
 }
 
 
- char *
- sal_strdup(const char *s)
- {
-     int len = sal_strlen(s);
-     char *rc = sal_malloc(len + 1);
-     if (rc != NULL) {
-         /* coverity[secure_coding] */
-         sal_strcpy(rc, s);
-     }
-     return rc;
- }
-#if 0 
+#if 0
  /*
   * _shr_ctoi
   *
   *   Converts a C-style constant integer to unsigned int
   */
- 
+
  unsigned int
  _shr_ctoi(const char *s)
  {
      unsigned int        n, neg, base = 10;
- 
+
      s += (neg = (*s == '-'));
- 
+
      if (*s == '0') {
          s++;
- 
+
          if (*s == 'x' || *s == 'X') {
              base = 16;
              s++;
@@ -858,7 +942,7 @@ int sal_sprintf(char *buf, const char *fmt, ...)
              base = 8;
          }
      }
- 
+
      for (n = 0; ((*s >= 'a' && *s <= 'z' && base > 10) ||
                   (*s >= 'A' && *s <= 'Z' && base > 10) ||
                   (*s >= '0' && *s <= '9')); s++) {
@@ -867,11 +951,11 @@ int sal_sprintf(char *buf, const char *fmt, ...)
               *s >= 'A' ? *s - 'A' + 10 :
               *s - '0');
      }
- 
+
      return (neg ? -n : n);
  }
 #endif
-#if 0 
+#if 0
  int
 shr_bitop_str_decode(char *str_value,
                      unsigned int *dst_ptr,
@@ -1041,7 +1125,7 @@ int soc_phy_fw_get(char *dev_name, uint8 **fw, int *fw_len)
 uint32
 sal_mutex_create(char *desc)
 {
-     return 0xFF;   
+     return 0xFF;
 }
 
 void
@@ -1074,7 +1158,7 @@ sal_mutex_give(uint32 b, int usec) {
 
 }
 void * sal_sem_create(char *desc, int binary, int initial_count) {
-   return (void *) 1;   
+   return (void *) 1;
 }
 
 #define BOOT_F_QUICKTURN 0x10000
@@ -1094,13 +1178,13 @@ sal_thread_self(void)
     return 0x1;
 }
 
-unsigned int 
+unsigned int
 sal_thread_create(char *a, int b, int c,void *f, void *t )
 {
     return 0x1;
 }
 
-void 
+void
 sal_udelay(uint32 usec) {
    sal_usleep(usec);
 }
@@ -1132,4 +1216,37 @@ sal_qsort(void *base, int count, int size, int (*compar)(const void *, const voi
 
         h /= 3;
     }
+}
+
+int
+sal_strcasecmp(const char *dest, const char *src)
+{
+    char dc,sc;
+    int rv = 0;
+
+    while (1) {
+        dc = sal_toupper(*dest++);
+        sc = sal_toupper(*src++);
+        if ((rv = dc - sc) != 0 || !dc) {
+            break;
+        }
+    }
+    return rv;
+}
+
+int
+sal_strncasecmp(const char *dest, const char *src, size_t cnt)
+{
+    char dc, sc;
+    int rv = 0;
+
+    while (cnt) {
+        dc = sal_toupper(*dest++);
+        sc = sal_toupper(*src++);
+        if ((rv = dc - sc) != 0 || !dc) {
+            break;
+        }
+        cnt--;
+    }
+    return rv;
 }

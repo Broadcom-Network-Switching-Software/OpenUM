@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #include "system.h"
@@ -889,12 +889,8 @@ mac_cl_speed_get(int unit, uint8 lport, int *speed)
         break;
     case SOC_CLMAC_SPEED_100000:
     default:
-        /* Obtain fine grained port speed, since
-        * SOC_CLMAC_SPEED_1000000 implies >= 10Gbps
-        */
-        // Currently no granular_speed can be abtained for FL
-        *speed =  SOC_PORT_SPEED_INIT(lport);
-
+        /* Currently no granular_speed can be abtained for FL. */
+        *speed = SOC_PORT_SPEED_INIT(lport);
         break;
     }
     LOG_VERBOSE(BSL_LS_SOC_COMMON,
@@ -1966,7 +1962,7 @@ mac_cl_control_set(int unit, uint8 lport, soc_mac_control_t type,
         LOG_VERBOSE(BSL_LS_SOC_COMMON,
                     ("%s..:no such type: type=%d\n",
                      __func__, type));
-        return SYS_ERR;
+        return SYS_ERR_UNAVAIL;
     }
 
     return rv;
@@ -2150,8 +2146,8 @@ mac_cl_control_get(int unit, uint8 lport, soc_mac_control_t type,
     case SOC_MAC_CONTROL_FAULT_REMOTE_TX_FORCE_ENABLE:
         SOC_IF_ERROR_RETURN
             (READ_CLMAC_RX_LSS_CTRLr(unit, lport, clmac_rx_lss_ctrl));
-        fval0 = CLMAC_RX_LSS_CTRLr_FAULT_SOURCE_FOR_TXf_GET(clmac_rx_lss_ctrl);
-        fval1 = CLMAC_RX_LSS_CTRLr_FORCE_REMOTE_FAULT_OSf_GET(clmac_rx_lss_ctrl);
+        fval0 = CLMAC_RX_LSS_CTRLr_FORCE_REMOTE_FAULT_OSf_GET(clmac_rx_lss_ctrl);
+        fval1 = CLMAC_RX_LSS_CTRLr_FAULT_SOURCE_FOR_TXf_GET(clmac_rx_lss_ctrl);
         if (fval0 == 1 && fval1 == 2) {
             *value = 1;
         } else {

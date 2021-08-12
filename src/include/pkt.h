@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef _PKT_H_
@@ -21,11 +21,11 @@
 #define SYS_TX_FLAG_USE_UNTAG_PORT_LIST             (1 << 9) 
 
 /* TimeSync Packet Flags. */
-#define SYS_TX_FLAG_TIMESYNC_ONE_STEP                  (1 << 10) /* One step timestamp. */
-#define SYS_TX_FLAG_TIMESYNC_ONE_STEP_INGRESS_SIGN     (1 << 11) /* Ingress timestamp sign bit. */
-#define SYS_TX_FLAG_TIMESYNC_ONE_STEP_HDR_START_OFFSET (1 << 12) /* PTP header offset in packet buffer. */
-#define SYS_TX_FLAG_TIMESYNC_ONE_STEP_REGEN_UDP_CHKSUM (1 << 13) /* Regenerate UDP header checksum of PTP packet. */
-#define SYS_TX_FLAG_TIMESYNC_TWO_STEP                  (1 << 14) /* Two-step timestamp. */
+#define SYS_TX_FLAG_TIMESYNC                        (1 << 10) /* Packet is for Time Sync protocol. */
+#define SYS_TX_FLAG_TIMESYNC_ONE_STEP               (1 << 11) /* One step timestamp. */
+#define SYS_TX_FLAG_TIMESYNC_INGRESS_SIGN           (1 << 12) /* Ingress timestamp sign bit. */
+#define SYS_TX_FLAG_TIMESYNC_HDR_START_OFFSET       (1 << 13) /* PTP header offset in packet buffer. */
+#define SYS_TX_FLAG_TIMESYNC_REGEN_UDP_CHKSUM       (1 << 14) /* Regenerate UDP header checksum of PTP packet. */
 
 /* VLAN tagging mode (Used if tx_uplist is empty) */
 #define SYS_TX_TAG_MODE_FOLLOW_SWITCH_RULES         (0)

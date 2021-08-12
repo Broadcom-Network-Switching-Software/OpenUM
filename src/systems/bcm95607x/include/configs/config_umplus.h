@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef _CONFIG_H_
@@ -72,7 +72,7 @@
 #define CFG_CLI_TX_MAX_PKTCFGS              (8)
 
 /* UART baudrate */
-#define CFG_UART_BAUDRATE                (115200) 
+#define CFG_UART_BAUDRATE                (115200)
 
 /* Max background tasks */
 #define CFG_MAX_BACKGROUND_TASKS            (8)
@@ -105,8 +105,8 @@
 /* FP */
 #define ENTRIES_PER_SLICE                   (128)
 
-/* Critical region protection with antoher processor*/
-#define CFG_SOC_SEMAPHORE_INCLUDED
+/* Critical region protection between CR5 and host processor. */
+/* #define CFG_SOC_SEMAPHORE_INCLUDED */
 
 /* chip type */
 #define CFG_SWITCH_XGS_NEW_SBUS_FORMAT_INCLUDED
@@ -114,14 +114,13 @@
 /* Stoarge related */
 #define CFG_FLASH_SUPPORT_ENABLED           (1)
 #define CFG_CLI_FLASH_CMD_ENABLED           (1)
+#define CFG_FLASH_4BYTE_ADDR_ENABLED        (1)
 
 /* A factory data management engine */
 #define CFG_FACTORY_CONFIG_INCLUDED
 
 /* A binary storage management engine, named serializer */
 #define CFG_PERSISTENCE_SUPPORT_ENABLED     (1)
-
-#define CFG_AGE_ENABLED                     (0)
 
 #define CFG_SWITCH_VLAN_INCLUDED
 
@@ -136,9 +135,6 @@
 
 /* To enable login web pages and related mechanism*/
 /* #define CFG_SYSTEM_PASSWORD_INCLUDED */
-
-/*To set the timeout of access control */
-#define CFG_ADMINP_LOGIN_TIMEOUT            (5 * 60 * 1000)
 
 /* Port Control Manager support */
 #define CFG_PCM_SUPPORT_INCLUDED
@@ -162,6 +158,21 @@
  *
  * Features defined below can be selectively add or removed before building the image
  */
+
+ /*
+  *  CFG_CHIP_SYMBOLS_INCLUDED
+  *      undefined : exclude symbol table for  all registers and memories
+  *      defined: include symbol table for  all registers and memories
+  */
+#define CFG_CHIP_SYMBOLS_INCLUDED
+
+ /*
+  *  CFG_CHIP_SYMBOLS_FIELD_INCLUDED
+  *      undefined : exclude fields information from symbol table
+  *      defined: include fields information in symbol table
+  */
+#define CFG_CHIP_SYMBOLS_FIELD_INCLUDED
+
 /*
   *  CFG_SDKCLI_INCLUDED
   *      undefined : exclude SDK-like CLI shell
@@ -175,6 +186,34 @@
   *      defined: include SDK-like "gpio" command
   */
 #define CFG_SDKCLI_GPIO_INCLUDED
+
+/*
+  *  CFG_SDKCLI_PORT_INCLUDED
+  *      undefined : exclude SDK-like "port" command
+  *      defined: include SDK-like "port" command
+  */
+#define CFG_SDKCLI_PORT_INCLUDED
+
+/*
+  *  CFG_SDKCLI_PHY_INCLUDED
+  *      undefined : exclude SDK-like "phy" command
+  *      defined: include SDK-like "phy" command
+  */
+#define CFG_SDKCLI_PHY_INCLUDED
+
+/*
+  *  CFG_SDKCLI_COE_INCLUDED
+  *      undefined : exclude SDK-like "coe" command
+  *      defined: include SDK-like "coe" command
+  */
+#define CFG_SDKCLI_COE_INCLUDED
+
+/*
+  *  CFG_SDKCLI_LED_INCLUDED
+  *      undefined : exclude SDK-like "led" command
+  *      defined: include SDK-like "led" command
+  */
+#define CFG_SDKCLI_LED_INCLUDED
 
 /*
   *  CFG_VENDOR_CONFIG_SUPPORT_INCLUDED
@@ -255,7 +294,7 @@
   *      undefined : exclude QoS feature
   *      defined: include QoS feature
   */
-/* #define CFG_SWITCH_QOS_INCLUDED */
+#define CFG_SWITCH_QOS_INCLUDED
 
 /*
   *  CFG_SWITCH_RATE_INCLUDED
@@ -300,10 +339,17 @@
 /* #define CFG_SWITCH_PVLAN_INCLUDED */
 /*
   *  CFG_SWITCH_SYNCE_INCLUDED
-  *      undefined : exclude time-sync feature
+  *      undefined : exclude time-synce feature
   *      defined: include time-synce feature
   */
 #define CFG_SWITCH_SYNCE_INCLUDED
+
+/*
+  *  CFG_SWITCH_TIMESYNC_INCLUDED
+  *      undefined : exclude timesync feature
+  *      defined: include timesync feature
+  */
+#define CFG_SWITCH_TIMESYNC_INCLUDED
 
 /*
   *  CFG_HW_CABLE_DIAG_INCLUDED
@@ -357,47 +403,28 @@
 /* #define CFG_DEBUGGING_INCLUDED */
 
 /*
+  *  CFG_SHR_DEBUG_INCLUDED
+  *      Valid as CFG_DEBUGGING_INCLUDED is definded.
+  *      undefined : exclude SHR debug macro
+  *      defined: include SHR debug macro
+  */
+/* #define CFG_SHR_DEBUG_INCLUDED */
+
+/*
+  *  CFG_SHR_DEBUG_LEVEL
+  *      Valid as CFG_SHR_DEBUG_INCLUDED is defined.
+  *      0 : Error messages only.
+  *      1 : Debug + error messages.
+  *      2 : Trace + debug + error messages.
+  */
+/* #define CFG_SHR_DEBUG_LEVEL  0 */
+
+/*
   *  CFG_LED_MICROCODE_INCLUDED
   *      undefined : exclude serial LED feature
-  *      defined as 1 : includee serial LED feature and use "direct serial out"
-  *      defined as 2 : includee serial LED feature and use "internal serial-to-parallel to chip ballout"
+  *      defined: includee serial LED feature
   */
-/* #define CFG_LED_MICROCODE_INCLUDED   (2) */
-
-/*
-  *  CFG_CONFIG_1G_PORT_AN : default AN mode on ports with fiber mode and max speed is 1G
-  *      defined as 0 : disable AN
-  *      defined as 1 : CL73
-  *      defined as 2 : CL37
-  */
-/* #define CFG_CONFIG_1G_PORT_AN  (2) */
-
-/*
-  *  CFG_CONFIG_10G_PORT_AN : default AN mode on ports with fiber mode and max speed is 10G
-  *      defined as 0 : disable AN
-  *      defined as 1 : CL73
-  */
-/* #define CFG_CONFIG_10G_PORT_AN  (0) */
-
-/*
-  *  CFG_TSCF_INTERFACE : TSCF_INTERFACE_SGMII/TSCF_INTERFACE_XFI/TSCF_INTERFACE_FIBER
-  */
-/* #define CFG_TSCF_INTERFACE   (TSCF_INTERFACE_XFI) */
-
-/*
-  *  CFG_TSCE_INTERFACE : TSCE_INTERFACE_SGMII/TSCE_INTERFACE_XFI/TSCE_INTERFACE_FIBER/TSCE_INTERFACE_XAUI
-  */
-/* #define CFG_TSCE_INTERFACE   (TSCE_INTERFACE_XFI) */
-
-/*
-  *  CFG_QTC_INTERFACE : QTC_INTERFACE_QSGMII/QTC_INTERFACE_SGMII/QTC_INTERFACE_FIBER
-  */
-/* #define CFG_QTC_INTERFACE    (QTC_INTERFACE_QSGMII) */
-
-/*
-  *  CFG_SGMIIPX4_INTERFACE : SGMIIPX4_INTERFACE_SGMII/SGMIIPX4_INTERFACE_FIBER
-  */
-/* #define CFG_SGMIIPX4_INTERFACE   (SGMIIPX4_INTERFACE_SGMII) */
+#define CFG_LED_MICROCODE_INCLUDED
 
 /*
  *  CFG_INTR_INCLUDED
@@ -409,16 +436,105 @@
 /*
  *  CFG_POLLED_INTR: Enable polled irq and disable true irq.
  */
-#define CFG_POLLED_INTR   (1)
+#define CFG_POLLED_INTR   (0)
+
+/*
+ * CFG_INTR_CHECK_NO_FLASH_CODE:
+ *     Check there's no flash code being executed in interrupt context
+ *     as CFG_POLLED_INTR=0.
+ *
+ *     defined: BSPI mode will be disabled in interrupt context.
+ *     If any function on flash is invoked, an exception will be triggered.
+ *
+ *     undefined: Turn off checking.
+ */
+/* #define CFG_INTR_CHECK_NO_FLASH_CODE */
+
+/*
+ * CFG_INTR_CACHE_INVALID_INCLUDED:
+ *     Perform cache invalid as interrupt happen for test interrupt latency purose.
+ *
+ *     defined: Cache invalid as interupt happen.
+ *     undefined: Won't do cache invalid.
+ */
+/* #define CFG_INTR_CACHE_INVALID_INCLUDED */
 
 /*
  *  CFG_WDT_INCLUDED
  *      undefined : exclude watchdog timer support.
  *      defined: include watchdog timer support.
  */
-/* #define CFG_WDT_INCLUDED */
+#define CFG_WDT_INCLUDED
 
 /* Watchdog timeout in us */
 #define CFG_WDT_TIMEOUT    (5000000UL)
+
+/*
+ *  CFG_MCS_INCLUDED
+ *      undefined : exclude MCS system.
+ *      defined: include MCS system.
+ */
+#define CFG_MCS_INCLUDED
+
+/*
+ *  CFG_BROADSYNC_INCLUDED
+ *      undefined : exclude broadsync function.
+ *      defined: include broadsync function.
+ */
+/* #define CFG_BROADSYNC_INCLUDED */
+
+/*
+ *  CFG_SPI_MGMT_INCLUDED
+ *      undefined : exclude SPI management sample code.
+ *      defined: include SPI management sample code.
+ */
+/* #define CFG_SPI_MGMT_INCLUDED */
+
+/*
+ *  CFG_COE_INCLUDED
+ *      undefined : exclude COE function
+ *      defined: include COE function
+ */
+#define CFG_COE_INCLUDED
+#ifdef CFG_COE_INCLUDED
+#ifdef CFG_SWITCH_MCAST_INCLUDED
+#error Need to rework the L2MC resource
+#endif
+#endif
+
+/*
+ *  CFG_COE_SCENARIO_INCLUDED
+ *      undefined : exclude default init for PTN9XX project on test purpose
+ *      defined: include default init for PTN9XX project on test purpose
+ */
+#define CFG_COE_SCENARIO_INCLUDED
+
+/*
+ *  CFG_TEMP_MONITOR_INCLUDED
+ *      undefined : exclude monitored temperature query.
+ *      defined: include monitored temperature query.
+ */
+#define CFG_TEMP_MONITOR_INCLUDED
+
+/*
+ *  CFG_LONG_US_DEALY_ENABLED
+ *      undefined : exclude long micro second delay.
+ *      defined: include long micro second delay.
+ */
+#define CFG_LONG_US_DEALY_ENABLED                 (1)
+
+/*
+ *  CFG_M0SSQ_INCLUDED
+ *      undefined : exclude M0SSQ driver.
+ *      defined: include M0SSQ driver.
+ */
+#define CFG_M0SSQ_INCLUDED
+
+/*
+ *  CFG_HARDWARE_LINKSCAN_INCLUDED
+ *      undefined : exclude hardware linkscan driver.
+ *      defined: include hardware linkscan driver.
+ */
+#define CFG_HARDWARE_LINKSCAN_INCLUDED
 
 #endif /* _CONFIG_H_ */

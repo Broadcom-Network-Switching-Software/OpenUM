@@ -1,9 +1,11 @@
-/*
- * $Id: rate.h,v 1.3 Broadcom SDK $
+/*! \file rate.h
  *
+ * Rate board APIs.
+ */
+/*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef _BOARDAPI_RATE_H_
@@ -70,15 +72,16 @@ extern sys_error_t board_port_rate_egress_set(uint16 uport,
 extern sys_error_t board_port_rate_egress_get(uint16 uport,
                                               uint32 *pps) REENTRANT;
 
-/*
+/**@{*/
+/*!
  * Storm control type flags
  */
-
 #define STORM_RATE_NONE   0x00
 #define STORM_RATE_BCAST  0x01
 #define STORM_RATE_MCAST  0x02
 #define STORM_RATE_DLF    0x04
 #define STORM_RATE_ALL    0xFF
+/**@}*/
 
 /*
  * Selecting storm control types for all ports

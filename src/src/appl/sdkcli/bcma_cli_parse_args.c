@@ -11,7 +11,7 @@
 /*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #include "system.h"
@@ -199,6 +199,8 @@ static int
 parse_start_word(bcma_cli_args_t *args, char *word)
 {
     if (args->argc >= COUNTOF(args->argv)) {
+        cli_out("%sThe number of arguments exceeds limitation %d\n",
+                BCMA_CLI_CONFIG_ERROR_STR, COUNTOF(args->argv));
         return -1;
     }
 

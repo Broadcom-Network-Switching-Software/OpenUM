@@ -5,7 +5,7 @@
 /*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef BCMA_CLICMD_H
@@ -88,5 +88,25 @@ bcma_clicmd_add_system_cmds(bcma_cli_t *cli);
  */
 extern int
 bcma_clicmd_add_switch_cmds(bcma_cli_t *cli);
+
+/*!
+ * \brief Add CLI pktdma commands.
+ *
+ * \param[in] cli CLI object
+ *
+ * \return Always 0.
+ */
+extern int
+bcma_clicmd_add_pktdma_cmds(bcma_cli_t *cli);
+
+/*!
+ * \brief Add CLI COE commands.
+ *
+ * \param[in] cli CLI object
+ *
+ * \return Always 0.
+ */
+extern int
+bcma_clicmd_add_coe_cmds(bcma_cli_t *cli);
 
 #endif /* BCMA_CLICMD_H */

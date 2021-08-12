@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 #include "system.h"
 
@@ -59,26 +59,6 @@ static int
 _bcm5607x_time_synce_clock_source_frequency_set(int unit,
     bcm_time_synce_clock_source_config_t *clk_src_config, int frequency);
 
-#if 1
-
-/*!
- * @enum phymod_dispatch_type_e
- * @brief Supported Drivers
- */
-typedef enum phymod_dispatch_type_e {
-    phymodDispatchTypeTsce16,
-    phymodDispatchTypeNull,
-    phymodDispatchTypeInvalid,
-    phymodDispatchTypeTscf16_gen3,
-    phymodDispatchTypeCount
-} phymod_dispatch_type_t;
-#endif
-
-
-#if 1
-static phymod_dispatch_type_t
-dummy_bcm_time_synce_tsc_phymod_dispatch_type_get(int unit, int lport);
-#endif
 #endif /* CFG_SWITCH_SYNCE_INCLUDED */
 
 #ifdef CFG_SWITCH_SYNCE_INCLUDED
@@ -176,6 +156,7 @@ bcm5607x_time_synce_clock_get(uint8 unit,
     divisor->input_src = bcmTimeSynceInputSourceTypePort;
     divisor->index = SOC_PORT_P2L_MAPPING(phy_port);
 
+    uint32 mode0, mode1, sdm_val;
     if (divisor->input_src == bcmTimeSynceInputSourceTypePort) {
         /* READ the SDM divisors from TSC */
         lport = divisor->index;
@@ -183,25 +164,13 @@ bcm5607x_time_synce_clock_get(uint8 unit,
             return SYS_ERR_PARAMETER;
         }
 
-#if 0
-        if (SOC_PORT_USE_PORTCTRL(unit, lport)) {
-            portmod_port_synce_clk_ctrl_t config;
-            portmod_port_synce_clk_ctrl_t_init(unit, &config);
-
-            SOC_IF_ERROR_RETURN(
-                portmod_port_synce_clk_ctrl_get(unit, lport, &config));
-
-            /* stage0_mode */
-            divisor->stage0_mode = config.stg0_mode;
-            sdm_val = config.sdm_val;
-            /* stage0_whole */
-            divisor->stage0_sdm_whole  = ((sdm_val & 0xff00) >> 8);
-            /* stage0_frac */
-            divisor->stage0_sdm_frac = sdm_val & 0xff ;
-            /* stage1_div  */
-            divisor->stage1_div = config.stg1_mode;
-        }
-#endif /* PORTMOD_SUPPORT */
+        pcm_phy_synce_clock_get(unit, lport, &mode0, &mode1, &sdm_val);
+        divisor->stage0_mode = (bcm_time_synce_stage0_mode_t)mode0;
+        divisor->stage1_div = (bcm_time_synce_stage1_div_t)mode1;
+        /* stage0_whole */
+        divisor->stage0_sdm_whole  = ((sdm_val & 0xff00) >> 8);
+        /* stage0_frac */
+        divisor->stage0_sdm_frac = sdm_val & 0xff ;
     }
     return SYS_OK;
 }
@@ -289,21 +258,14 @@ bcm5607x_time_synce_clock_set_by_port(
         return SYS_ERR_FALSE;
     }
 
-#ifdef PORTMOD_SUPPORT
-    if ((SOC_PORT_USE_PORTCTRL(unit, lport))) {
-        portmod_port_synce_clk_ctrl_t config;
-        portmod_port_synce_clk_ctrl_t_init(unit, &config);
-        /* Set TSCF SDM divisors */
-        /* Set SDM stage 1 mode to bypass */
-        sdm_val = ((divisor->stage0_sdm_whole & 0xff) << 8 |
-                   (divisor->stage0_sdm_frac & 0xff));
+    uint32 sdm_val;
+    /* Set TSCF SDM divisors */
+    /* Set SDM stage 1 mode to bypass */
+    sdm_val = ((divisor->stage0_sdm_whole & 0xff) << 8 |
+               (divisor->stage0_sdm_frac & 0xff));
 
-        config.stg0_mode = divisor->stage0_mode;
-        config.stg1_mode = 0x0;
-        config.sdm_val = sdm_val;
-        SOC_IF_ERROR_RETURN(portmod_port_synce_clk_ctrl_set(unit, lport, &config));
-    }
-#endif /* PORTMOD_SUPPORT */
+    pcm_phy_synce_clock_set(unit, lport, (uint32)divisor->stage0_mode, 0,
+                            sdm_val);
 
     /* serdes port configuration */
     if (clk_src == bcmTimeSynceClockSourceSecondary) {
@@ -526,7 +488,6 @@ typedef enum bcmi_time_port_mode_e {
 static void
 bcm5607x_time_port_mode_get(
     int unit,
-    phymod_dispatch_type_t dispatch_type,
     int lport,
     bcmi_time_port_mode_t *port_mode)
 {
@@ -535,7 +496,7 @@ bcm5607x_time_port_mode_get(
     }
 
     *port_mode = bcmi_time_port_mode_invalid;
-    if (dispatch_type == phymodDispatchTypeTscf16_gen3) {
+    if (IS_CL_PORT(lport)) {
         int mode;
 
         _bcm5607x_port_mode_get(unit, lport, &mode);
@@ -553,29 +514,6 @@ bcm5607x_time_port_mode_get(
         }
     }
 }
-
-#if 1
-
-static phymod_dispatch_type_t
-dummy_bcm_time_synce_tsc_phymod_dispatch_type_get(int unit, int lport)
-{
-    int phy_port = SOC_PORT_L2P_MAPPING(lport);
-
-    if (phy_port >= 2 && phy_port <= 49) {
-        /* Q mode is not supported */
-        return phymodDispatchTypeInvalid;
-    }
-    else if (phy_port >= 50 && phy_port <= 61) {
-        /* PM4x10Q with eth mode, TSCE0, TSCE1, TSCE2 */
-        return phymodDispatchTypeTsce16;
-    }
-    else if (phy_port >= 62 && phy_port <= 77) {
-        /* Falcon : TSCF0, TSCF1, TSCF2, TSCF3 */
-        return phymodDispatchTypeTscf16_gen3;
-    }
-    return phymodDispatchTypeInvalid;
-}
-#endif
 
 /*
  * Function:
@@ -613,218 +551,201 @@ _bcm5607x_time_synce_clock_source_frequency_get(uint8 unit,
             (div_out.stage1_div == bcmTimeSynceStage1Div1)) {
             int port_speed = 0; /* speed specified in mbps*/
             uint32 sdm_divisor = 0;
-            phymod_dispatch_type_t dispatch_type =
-                phymodDispatchTypeInvalid;
-            bcmi_time_port_mode_t port_mode =
-                bcmi_time_port_mode_invalid;
+            bcmi_time_port_mode_t port_mode = bcmi_time_port_mode_invalid;
 
+            rv = pcm_port_speed_get(unit, clk_src_config->port, &port_speed);
+            if (rv != SYS_OK) {
+                sal_printf("\n Cannot get port(%d) speed", clk_src_config->port);
+            }
 
-#if 1
-            port_speed = SOC_PORT_SPEED_STATUS(clk_src_config->port);
-#else
-            BCM_IF_ERROR_RETURN(bcm_esw_port_speed_get(unit,
-                                clk_src_config->port, &port_speed));
-#endif
-
-             sdm_divisor = (div_out.stage0_sdm_whole << 8) |
+            sdm_divisor = (div_out.stage0_sdm_whole << 8) |
                             div_out.stage0_sdm_frac;
 
-
-#if 1
-            dispatch_type = dummy_bcm_time_synce_tsc_phymod_dispatch_type_get(unit, clk_src_config->port);
-#else
-            dispatch_type = _bcm_time_synce_tsc_phymod_dispatch_type_get(unit, clk_src_config->port);
-#endif
-
             bcm5607x_time_port_mode_get
-                (unit, dispatch_type, clk_src_config->port, &port_mode);
+                (unit, clk_src_config->port, &port_mode);
 
-            switch(dispatch_type) {
-                case phymodDispatchTypeTsce16:
-                    /* Eagle port with Ethernet mode. */
-                    /* Regular port */
-                    if (sdm_divisor == 0x14a0) {
-                        *frequency = bcmTimeSyncE25MHz;
+            if (IS_XL_PORT(clk_src_config->port)) {
+                /* Eagle port with Ethernet mode. */
+                /* Regular port */
+                if (sdm_divisor == 0x14a0) {
+                    *frequency = bcmTimeSyncE25MHz;
+                }
+            } else if (IS_CL_PORT(clk_src_config->port)) {
+                if (port_mode == bcmi_time_port_mode_single) {
+                    switch (port_speed) {
+                        case 106000:
+                            /* 106G HG - VCO 27.34375, 0x1B58 */
+                            if (sdm_divisor == 0x1B58) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
+                                return SYS_ERR_PARAMETER;
+                            }
+                            break;
+                        case 100000:
+                            /* 100G - VCO 25.78125, 0x19C8 */
+                            if (sdm_divisor == 0x19C8) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
+                                return SYS_ERR_PARAMETER;
+                            }
+                            break;
+                        case 42000:
+                            /* 42G HG - VCO 21.875, 0xAF0 */
+                            if (sdm_divisor == 0xAF0) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
+                                return SYS_ERR_PARAMETER;
+                            }
+                            break;
+                        case 40000:
+                            /* 40G - VCO 20.625, 0xA50 */
+                            if (sdm_divisor == 0xA50) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
+                                return SYS_ERR_PARAMETER;
+                            }
+                            break;
+                        default:
+                            return SYS_ERR_PARAMETER;
+                        break;
                     }
-                    break;
-                case phymodDispatchTypeTscf16_gen3:
-                    if (port_mode == bcmi_time_port_mode_single) {
-                        switch (port_speed) {
-                            case 106000:
-                                /* 106G HG - VCO 27.34375, 0x1B58 */
-                                if (sdm_divisor == 0x1B58) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            case 100000:
-                                /* 100G - VCO 25.78125, 0x19C8 */
-                                if (sdm_divisor == 0x19C8) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            case 42000:
-                                /* 42G HG - VCO 21.875, 0xAF0 */
-                                if (sdm_divisor == 0xAF0) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            case 40000:
-                                /* 40G - VCO 20.625, 0xA50 */
-                                if (sdm_divisor == 0xA50) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            default:
+                } else if (port_mode == bcmi_time_port_mode_dual) {
+                    switch (port_speed) {
+                        case 53000:
+                            /* 53G HG - VCO 27.34375, 0x1B58 */
+                            if (sdm_divisor == 0x1B58) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
                                 return SYS_ERR_PARAMETER;
+                            }
                             break;
-                        }
-                    } else if (port_mode == bcmi_time_port_mode_dual) {
-                        switch (port_speed) {
-                            case 53000:
-                                /* 53G HG - VCO 27.34375, 0x1B58 */
-                                if (sdm_divisor == 0x1B58) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            case 50000:
-                                /* 50G - VCO 25.78125, 0x19C8 */
-                                if (sdm_divisor == 0x19C8) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            case 42000:
-                                /* 42G HG - VCO 21.875, 15E0 */
-                                if (sdm_divisor == 0x15E0) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            case 40000:
-                                /* 40G - VCO 20.625, 0x14A0 */
-                                if (sdm_divisor == 0x14A0) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            case 21000:
-                                /* 21G - VCO 21.875, 0xAF0 */
-                                if (sdm_divisor == 0xAF0) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            case 20000:
-                                /* 20G - VCO 20.625, 0xA50 */
-                                if (sdm_divisor == 0xA50) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            default:
+                        case 50000:
+                            /* 50G - VCO 25.78125, 0x19C8 */
+                            if (sdm_divisor == 0x19C8) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
                                 return SYS_ERR_PARAMETER;
+                            }
                             break;
-                        }
-                    } else if (port_mode == bcmi_time_port_mode_quad) {
-                        switch (port_speed) {
-                            case 27000:
-                                /* 27G HG - VCO 27.34375, 0x1B58 */
-                                if (sdm_divisor == 0x1B58) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            case 25000:
-                                /* 25G - VCO 25.78125, 0x19C8 */
-                                if (sdm_divisor == 0x19C8) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            case 11000:
-                                /* 11G HG - VCO 27.34375, 0xAF0 */
-                                if (sdm_divisor == 0xAF0) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            case 10000:
-                                /* 10G - VCO 25.78125, 0xA50 */
-                                if (sdm_divisor == 0xA50) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            case 1000:
-                                /* 1G - VCO 20.625, 0x14A0 */
-                                /* 1G - VCO 25.78125, 0x19C8 */
-                                if (sdm_divisor == 0x14A0 ||
-                                    sdm_divisor == 0x19C8) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            default:
+                        case 42000:
+                            /* 42G HG - VCO 21.875, 15E0 */
+                            if (sdm_divisor == 0x15E0) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
                                 return SYS_ERR_PARAMETER;
+                            }
                             break;
-                        }
-                    } else if (port_mode == bcmi_time_port_mode_tri) {
-                        switch (port_speed) {
-                            case 50000:
-                            case 25000:
-                                /* 25G/50G - VCO 27.34375, 0x19C8 */
-                                if (sdm_divisor == 0x19C8) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            case 40000:
-                                /* 40G - VCO 20.625, 0x14A0 */
-                                if (sdm_divisor == 0x14A0) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            case 20000:
-                            case 10000:
-                                /* 10G/20G - VCO 20.625, 0xA50 */
-                                if (sdm_divisor == 0xA50) {
-                                    *frequency = bcmTimeSyncE25MHz;
-                                } else {
-                                    return SYS_ERR_PARAMETER;
-                                }
-                                break;
-                            default:
+                        case 40000:
+                            /* 40G - VCO 20.625, 0x14A0 */
+                            if (sdm_divisor == 0x14A0) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
                                 return SYS_ERR_PARAMETER;
+                            }
                             break;
-                        }
+                        case 21000:
+                            /* 21G - VCO 21.875, 0xAF0 */
+                            if (sdm_divisor == 0xAF0) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
+                                return SYS_ERR_PARAMETER;
+                            }
+                            break;
+                        case 20000:
+                            /* 20G - VCO 20.625, 0xA50 */
+                            if (sdm_divisor == 0xA50) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
+                                return SYS_ERR_PARAMETER;
+                            }
+                            break;
+                        default:
+                            return SYS_ERR_PARAMETER;
+                        break;
                     }
-                break;
-                    default: break;
-                } /* switch(dispatch_type) */
+                } else if (port_mode == bcmi_time_port_mode_quad) {
+                    switch (port_speed) {
+                        case 27000:
+                            /* 27G HG - VCO 27.34375, 0x1B58 */
+                            if (sdm_divisor == 0x1B58) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
+                                return SYS_ERR_PARAMETER;
+                            }
+                            break;
+                        case 25000:
+                            /* 25G - VCO 25.78125, 0x19C8 */
+                            if (sdm_divisor == 0x19C8) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
+                                return SYS_ERR_PARAMETER;
+                            }
+                            break;
+                        case 11000:
+                            /* 11G HG - VCO 27.34375, 0xAF0 */
+                            if (sdm_divisor == 0xAF0) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
+                                return SYS_ERR_PARAMETER;
+                            }
+                            break;
+                        case 10000:
+                            /* 10G - VCO 25.78125, 0xA50 */
+                            if (sdm_divisor == 0xA50) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
+                                return SYS_ERR_PARAMETER;
+                            }
+                            break;
+                        case 1000:
+                            /* 1G - VCO 20.625, 0x14A0 */
+                            /* 1G - VCO 25.78125, 0x19C8 */
+                            if (sdm_divisor == 0x14A0 ||
+                                sdm_divisor == 0x19C8) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
+                                return SYS_ERR_PARAMETER;
+                            }
+                            break;
+                        default:
+                            return SYS_ERR_PARAMETER;
+                        break;
+                    }
+                } else if (port_mode == bcmi_time_port_mode_tri) {
+                    switch (port_speed) {
+                        case 50000:
+                        case 25000:
+                            /* 25G/50G - VCO 27.34375, 0x19C8 */
+                            if (sdm_divisor == 0x19C8) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
+                                return SYS_ERR_PARAMETER;
+                            }
+                            break;
+                        case 40000:
+                            /* 40G - VCO 20.625, 0x14A0 */
+                            if (sdm_divisor == 0x14A0) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
+                                return SYS_ERR_PARAMETER;
+                            }
+                            break;
+                        case 20000:
+                        case 10000:
+                            /* 10G/20G - VCO 20.625, 0xA50 */
+                            if (sdm_divisor == 0xA50) {
+                                *frequency = bcmTimeSyncE25MHz;
+                            } else {
+                                return SYS_ERR_PARAMETER;
+                            }
+                            break;
+                        default:
+                            return SYS_ERR_PARAMETER;
+                        break;
+                    }
+                }
             }
+        }
     } else {
         return SYS_ERR_PARAMETER;
     }
@@ -852,7 +773,7 @@ _bcm5607x_time_synce_clock_source_frequency_set(int unit,
     int rv = SYS_OK;
     bcm_time_synce_divisor_setting_t div_in;
     bcm_time_synce_divisor_setting_t_init(&div_in);
-    uint8 vco_25g;
+    uint8 vco_25g = 0;
 
     if (clk_src_config->input_src == bcmTimeSynceInputSourceTypePort) {
         div_in.index = clk_src_config->port;
@@ -866,7 +787,6 @@ _bcm5607x_time_synce_clock_source_frequency_set(int unit,
 
     if (clk_src_config->input_src == bcmTimeSynceInputSourceTypePort) {
         int port_speed = 0; /* speed specified in mbps */
-        phymod_dispatch_type_t dispatch_type = phymodDispatchTypeInvalid;
         bcmi_time_port_mode_t port_mode = bcmi_time_port_mode_invalid;
 
         /* no qmode checking
@@ -875,164 +795,150 @@ _bcm5607x_time_synce_clock_source_frequency_set(int unit,
         (void)bcmi_esw_time_port_is_gmii_mode(unit, clk_src_config->port,
                                               &gmii_mode);
         */
+        rv = pcm_port_speed_get(unit, clk_src_config->port, &port_speed);
+        if (rv != SYS_OK) {
+            sal_printf("\n Cannot get port(%d) speed", clk_src_config->port);
+        }
 
-#if 1
-        port_speed = SOC_PORT_SPEED_STATUS(clk_src_config->port);
-#else
-        BCM_IF_ERROR_RETURN(bcm_esw_port_speed_get(unit, clk_src_config->port, &port_speed));
-#endif
-
-
-#if 1
-        dispatch_type = dummy_bcm_time_synce_tsc_phymod_dispatch_type_get(unit, clk_src_config->port);
-#else
-        dispatch_type = _bcm_time_synce_tsc_phymod_dispatch_type_get(unit, clk_src_config->port);
-#endif
         bcm5607x_time_port_mode_get
-            (unit, dispatch_type, clk_src_config->port, &port_mode);
+            (unit, clk_src_config->port, &port_mode);
         switch (frequency) {
             case bcmTimeSyncE25MHz: /* 25MHz using SDM mode */
                 div_in.stage0_mode = bcmTimeSynceModeSDMFracDiv;
                 div_in.stage1_div = bcmTimeSynceStage1Div1;
-                switch(dispatch_type) {
-                    case phymodDispatchTypeTsce16:
-                        /* Eagle port with Ethernet mode. */
-                        /* Regular port, 0x14A0 */
-                        div_in.stage0_sdm_whole = 0x14;
-                        div_in.stage0_sdm_frac  = 0xa0;
-                        break;
-                    case phymodDispatchTypeTscf16_gen3:
-                        if (port_mode == bcmi_time_port_mode_single) {
-                            switch (port_speed) {
-                                case 106000:
-                                    /* 106G HG - VCO 27.34375, 0x1B58 */
-                                    div_in.stage0_sdm_whole = 0x1B;
-                                    div_in.stage0_sdm_frac  = 0x58;
-                                    break;
-                                case 100000:
-                                    /* 100G - VCO 25.78125, 0x19C8 */
-                                    div_in.stage0_sdm_whole = 0x19;
-                                    div_in.stage0_sdm_frac  = 0xC8;
-                                    break;
-                                case 42000:
-                                    /* 42G HG - VCO 21.875, 0xAF0 */
-                                    div_in.stage0_sdm_whole = 0xA;
-                                    div_in.stage0_sdm_frac  = 0xF0;
-                                    break;
-                                case 40000:
-                                    /* 40G - VCO 20.625, 0xA50 */
-                                    div_in.stage0_sdm_whole = 0xA;
-                                    div_in.stage0_sdm_frac  = 0x50;
-                                    break;
-                                default:
-                                    return SYS_ERR_PARAMETER;
-                                break;
-                            }
-                        } else if (port_mode == bcmi_time_port_mode_dual) {
-                            switch (port_speed) {
-                                case 53000:
-                                    /* 53G HG - VCO 27.34375, 0x1B58 */
-                                    div_in.stage0_sdm_whole = 0x1B;
-                                    div_in.stage0_sdm_frac  = 0x58;
-                                    break;
-                                case 50000:
-                                    /* 50G - VCO 25.78125, 0x19C8 */
-                                    div_in.stage0_sdm_whole = 0x19;
-                                    div_in.stage0_sdm_frac  = 0xC8;
-                                    break;
-                                case 42000:
-                                    /* 42G HG - VCO 21.875, 15E0 */
-                                    div_in.stage0_sdm_whole = 0x15;
-                                    div_in.stage0_sdm_frac  = 0xE0;
-                                    break;
-                                case 40000:
-                                    /* 40G - VCO 20.625, 0x14A0 */
-                                    div_in.stage0_sdm_whole = 0x14;
-                                    div_in.stage0_sdm_frac  = 0xA0;
-                                    break;
-                                case 21000:
-                                    /* 21G - VCO 21.875, 0xAF0 */
-                                    div_in.stage0_sdm_whole = 0xA;
-                                    div_in.stage0_sdm_frac  = 0xF0;
-                                    break;
-                                case 20000:
-                                    /* 20G - VCO 20.625, 0xA50 */
-                                    div_in.stage0_sdm_whole = 0xA;
-                                    div_in.stage0_sdm_frac  = 0x50;
-                                    break;
-                                default:
-                                    return SYS_ERR_PARAMETER;
-                                break;
-                            }
-                        } else if (port_mode == bcmi_time_port_mode_quad) {
-                            rv = sal_config_uint8_get
-                                 (SAL_CONFIG_SERDES_1000X_AT_25G_VCO, &vco_25g);
 
-                            switch (port_speed) {
-                                case 27000:
-                                    /* 27G HG - VCO 27.34375, 0x1B58 */
-                                    div_in.stage0_sdm_whole = 0x1B;
-                                    div_in.stage0_sdm_frac  = 0x58;
-                                    break;
-                                case 25000:
-                                    /* 25G - VCO 25.78125, 0x19C8 */
-                                    div_in.stage0_sdm_whole = 0x19;
-                                    div_in.stage0_sdm_frac  = 0xC8;
-                                    break;
-                                case 11000:
-                                    /* 11G HG - VCO 27.34375, 0xAF0 */
-                                    div_in.stage0_sdm_whole = 0xA;
-                                    div_in.stage0_sdm_frac  = 0xF0;
-                                    break;
-                                case 10000:
-                                    /* 10G - VCO 25.78125, 0xA50 */
-                                    div_in.stage0_sdm_whole = 0xA;
-                                    div_in.stage0_sdm_frac  = 0x50;
-                                    break;
-                                case 1000:
-                                    if (vco_25g) {
-                                        /* 1G - VCO 25.78125, 0x19C8 */
-                                        div_in.stage0_sdm_whole = 0x19;
-                                        div_in.stage0_sdm_frac  = 0xC8;
-                                    } else {
-                                        /* 1G - VCO 20.625, 0x14A0 */
-                                        div_in.stage0_sdm_whole = 0x14;
-                                        div_in.stage0_sdm_frac  = 0xA0;
-                                    }
-                                    break;
-                                default:
-                                    return SYS_ERR_PARAMETER;
+                if (IS_XL_PORT(clk_src_config->port)) {
+                    /* Eagle port with Ethernet mode. */
+                    /* Regular port, 0x14A0 */
+                    div_in.stage0_sdm_whole = 0x14;
+                    div_in.stage0_sdm_frac  = 0xa0;
+                } else if (IS_CL_PORT(clk_src_config->port)) {
+                    if (port_mode == bcmi_time_port_mode_single) {
+                        switch (port_speed) {
+                            case 106000:
+                                /* 106G HG - VCO 27.34375, 0x1B58 */
+                                div_in.stage0_sdm_whole = 0x1B;
+                                div_in.stage0_sdm_frac  = 0x58;
                                 break;
-                            }
-                        } else if (port_mode == bcmi_time_port_mode_tri) {
-                            switch (port_speed) {
-                                case 50000:
-                                case 25000:
-                                    /* 25G/50G - VCO 27.34375, 0x19C8 */
+                            case 100000:
+                                /* 100G - VCO 25.78125, 0x19C8 */
+                                div_in.stage0_sdm_whole = 0x19;
+                                div_in.stage0_sdm_frac  = 0xC8;
+                                break;
+                            case 42000:
+                                /* 42G HG - VCO 21.875, 0xAF0 */
+                                div_in.stage0_sdm_whole = 0xA;
+                                div_in.stage0_sdm_frac  = 0xF0;
+                                break;
+                            case 40000:
+                                /* 40G - VCO 20.625, 0xA50 */
+                                div_in.stage0_sdm_whole = 0xA;
+                                div_in.stage0_sdm_frac  = 0x50;
+                                break;
+                            default:
+                                return SYS_ERR_PARAMETER;
+                            break;
+                        }
+                    } else if (port_mode == bcmi_time_port_mode_dual) {
+                        switch (port_speed) {
+                            case 53000:
+                                /* 53G HG - VCO 27.34375, 0x1B58 */
+                                div_in.stage0_sdm_whole = 0x1B;
+                                div_in.stage0_sdm_frac  = 0x58;
+                                break;
+                            case 50000:
+                                /* 50G - VCO 25.78125, 0x19C8 */
+                                div_in.stage0_sdm_whole = 0x19;
+                                div_in.stage0_sdm_frac  = 0xC8;
+                                break;
+                            case 42000:
+                                /* 42G HG - VCO 21.875, 15E0 */
+                                div_in.stage0_sdm_whole = 0x15;
+                                div_in.stage0_sdm_frac  = 0xE0;
+                                break;
+                            case 40000:
+                                /* 40G - VCO 20.625, 0x14A0 */
+                                div_in.stage0_sdm_whole = 0x14;
+                                div_in.stage0_sdm_frac  = 0xA0;
+                                break;
+                            case 21000:
+                                /* 21G - VCO 21.875, 0xAF0 */
+                                div_in.stage0_sdm_whole = 0xA;
+                                div_in.stage0_sdm_frac  = 0xF0;
+                                break;
+                            case 20000:
+                                /* 20G - VCO 20.625, 0xA50 */
+                                div_in.stage0_sdm_whole = 0xA;
+                                div_in.stage0_sdm_frac  = 0x50;
+                                break;
+                            default:
+                                return SYS_ERR_PARAMETER;
+                            break;
+                        }
+                    } else if (port_mode == bcmi_time_port_mode_quad) {
+                        rv = sal_config_uint8_get
+                             (SAL_CONFIG_SERDES_1000X_AT_25G_VCO, &vco_25g);
+
+                        switch (port_speed) {
+                            case 27000:
+                                /* 27G HG - VCO 27.34375, 0x1B58 */
+                                div_in.stage0_sdm_whole = 0x1B;
+                                div_in.stage0_sdm_frac  = 0x58;
+                                break;
+                            case 25000:
+                                /* 25G - VCO 25.78125, 0x19C8 */
+                                div_in.stage0_sdm_whole = 0x19;
+                                div_in.stage0_sdm_frac  = 0xC8;
+                                break;
+                            case 11000:
+                                /* 11G HG - VCO 27.34375, 0xAF0 */
+                                div_in.stage0_sdm_whole = 0xA;
+                                div_in.stage0_sdm_frac  = 0xF0;
+                                break;
+                            case 10000:
+                                /* 10G - VCO 25.78125, 0xA50 */
+                                div_in.stage0_sdm_whole = 0xA;
+                                div_in.stage0_sdm_frac  = 0x50;
+                                break;
+                            case 1000:
+                                if (vco_25g) {
+                                    /* 1G - VCO 25.78125, 0x19C8 */
                                     div_in.stage0_sdm_whole = 0x19;
                                     div_in.stage0_sdm_frac  = 0xC8;
-                                    break;
-                                case 40000:
-                                    /* 40G - VCO 20.625, 0x14A0 */
+                                } else {
+                                    /* 1G - VCO 20.625, 0x14A0 */
                                     div_in.stage0_sdm_whole = 0x14;
                                     div_in.stage0_sdm_frac  = 0xA0;
-                                    break;
-                                case 20000:
-                                case 10000:
-                                    /* 10G/20G - VCO 20.625, 0xA50 */
-                                    div_in.stage0_sdm_whole = 0xA;
-                                    div_in.stage0_sdm_frac  = 0x50;
-                                    break;
-                                default:
-                                    return SYS_ERR_PARAMETER;
+                                }
                                 break;
-                            }
+                            default:
+                                return SYS_ERR_PARAMETER;
+                            break;
                         }
-                    break;
-                    default:
-                        sal_printf("unknown port dispatch type  ... %d\n",
-                                (int)dispatch_type);
-                        return SYS_ERR_FALSE;
+                    } else if (port_mode == bcmi_time_port_mode_tri) {
+                        switch (port_speed) {
+                            case 50000:
+                            case 25000:
+                                /* 25G/50G - VCO 27.34375, 0x19C8 */
+                                div_in.stage0_sdm_whole = 0x19;
+                                div_in.stage0_sdm_frac  = 0xC8;
+                                break;
+                            case 40000:
+                                /* 40G - VCO 20.625, 0x14A0 */
+                                div_in.stage0_sdm_whole = 0x14;
+                                div_in.stage0_sdm_frac  = 0xA0;
+                                break;
+                            case 20000:
+                            case 10000:
+                                /* 10G/20G - VCO 20.625, 0xA50 */
+                                div_in.stage0_sdm_whole = 0xA;
+                                div_in.stage0_sdm_frac  = 0x50;
+                                break;
+                            default:
+                                return SYS_ERR_PARAMETER;
+                            break;
+                        }
+                    }
                 }
                 break;
             default:

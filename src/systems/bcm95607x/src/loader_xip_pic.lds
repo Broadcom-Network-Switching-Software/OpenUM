@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 MEMORY {
        ATCM : ORIGIN = 0x00000000, LENGTH = 128K
@@ -29,6 +29,10 @@ SECTIONS
         *(.flashdata);
         *pcmphyctrl_phymod.a:falcon16_v1l4p1_ucode.o(.data*)
         *pcmphyctrl_phymod.a:merlin16_ucode.o(.data*)
+        *pcmphyctrl_phymod.a:bcmi_tsce_xgxs_sym.o(.data*)
+        *pcmphyctrl_phymod.a:bcmi_tscf_xgxs_sym.o(.data*)
+        *pcmphyctrl_phymod.a:bcmi_tsce16_xgxs_sym.o(.data*)
+        *pcmphyctrl_phymod.a:bcmi_tscf16_gen3_xgxs_sym.o(.data*)
         . = ALIGN(4);
 }
 
@@ -54,9 +58,17 @@ text_end = .;
         . = ALIGN(32);
         *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:falcon16_v1l4p1_ucode.o) .data.*);
         *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:merlin16_ucode.o) .data.*);
+        *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:bcmi_tsce_xgxs_sym.o) .data*);
+        *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:bcmi_tscf_xgxs_sym.o) .data*);
+        *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:bcmi_tsce16_xgxs_sym.o) .data*);
+        *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:bcmi_tscf16_gen3_xgxs_sym.o) .data*);
         data_rel2_start = .;
         *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:falcon16_v1l4p1_ucode.o) .data*);
         *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:merlin16_ucode.o) .data*);
+        *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:bcmi_tsce_xgxs_sym.o) .data*);
+        *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:bcmi_tscf_xgxs_sym.o) .data*);
+        *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:bcmi_tsce16_xgxs_sym.o) .data*);
+        *(EXCLUDE_FILE (*pcmphyctrl_phymod.a:bcmi_tscf16_gen3_xgxs_sym.o) .data*);
         data_rel2_end = .;
         . = ALIGN(4);
         data_end = .;

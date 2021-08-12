@@ -1,7 +1,7 @@
 # $Id: um.mk,v 1.15 Broadcom SDK $
 # This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
 # 
-# Copyright 2007-2020 Broadcom Inc. All rights reserved.
+# Copyright 2007-2021 Broadcom Inc. All rights reserved.
 
 #
 # UM's version number
@@ -12,6 +12,15 @@ CHIP = bcm5607x
 CFG_BOARDNAME ?= BCM956070K
 
 include ${TOP}/systems/${SYSTEM}/um_version.mk
+
+ifeq ($(strip ${CFG_DUAL_IMAGE}),1)
+CFG_IMAGE_ID = 1
+endif
+
+ifeq ($(strip ${CFG_IMAGE_ID}),1)
+CFG_IMAGE_1_ID ?= 1
+CFG_IMAGE_2_ID ?= 2
+endif
 
 #
 # Default values for certain parameters
@@ -38,11 +47,11 @@ CFG_ZIPPED_CFE ?= 0
 CFG_RELEASE_STAGE ?= 0
 CFG_COMPRESSED_IMAGE ?= 0
 
-SDK_PATCH_DIR = $(TOP)/sdk/sdk-overwrite
+SDK_PATCH_DIR = $(TOP)/sdk/sdk-6.5.22-overwrite
 SDK_RELEASE_DIR = $(TOP)/sdk/release
 
 ifeq ($(SDK_SRC_DIR),)
-SDK_DIR = $(TOP)/sdk/sdk-header
+SDK_DIR = $(TOP)/sdk/sdk-6.5.22-header
 else
 SDK_DIR = $(SDK_SRC_DIR)
 endif
@@ -127,14 +136,18 @@ include ${BUILD_DIR}/src/tools.mk
 #
 # Add some common flags that are used on any architecture.
 #
-CFLAGS += -DVENDOR_BROADCOM
 CFLAGS += -I. $(INCDIRS)
 CFLAGS += -D_CFE_ ${VDEF} -DCFG_BOARDNAME=\"${CFG_BOARDNAME}\"
 
+ifeq ($(strip ${CFG_IMAGE_ID}),1)
+CFLAGS += -DCFG_IMAGE_1_ID=${CFG_IMAGE_1_ID}
+CFLAGS += -DCFG_IMAGE_2_ID=${CFG_IMAGE_2_ID}
+endif
 
 ifeq ($(strip ${CFG_QT}), 1)
 CFLAGS += -D__EMULATION__
 endif
+
 #
 # Gross - allow more options to be supplied from command line
 #
@@ -144,9 +157,15 @@ OPTFLAGS = $(patsubst %,-D%,$(subst :, ,$(CFG_OPTIONS)))
 CFLAGS += ${OPTFLAGS}
 endif
 
-CFLAGS += -DPHYMOD_SUPPORT
-CFLAGS += -DPHYMOD_TIER1_SUPPORT
-CFLAGS += -DPHYMOD_INCLUDE_CUSTOM_CONFIG
+#
+# Add PHY support
+#
+-include ${BUILD_DIR}/um_gen_phylibs.mk
+
+#
+# Add CMICX support
+#
+CFLAGS += -DCFG_CMICX_SUPPORT
 
 #
 # Include the makefiles for the architecture-common, cpu-specific,
@@ -193,6 +212,7 @@ endif
 ifndef CFG_SOC_SNAKE_TEST
 APPLOBJS += snaketest.o
 endif
+APPLOBJS += bs.o
 SRCDIRS += ${TOP}/src/appl ${TOP}/src/appl/snaketest
 SRCDIRS += ${TOP}/src/appl/igmpsnoop ${TOP}/src/appl/net
 
@@ -281,7 +301,7 @@ SWITCHOBJ = flrxtx.o flloop.o flvlan.o flport.o fllinkscan.o flled.o \
             tdm_fl_shim.o tdm_filter.o tdm_llist.o \
             tdm_main.o tdm_math.o tdm_ovsb.o \
             tdm_parse.o tdm_proc.o tdm_scan.o \
-            tdm_tsfm.o tdm_ver.o tdm_vmap.o
+            tdm_tsfm.o tdm_ver.o tdm_vmap.o flcoe.o fltimesync.o
 
 ifeq ($(strip ${CFG_IP}), 1)
 SWITCHOBJ += flmdns.o
@@ -290,16 +310,55 @@ endif
 # Unit tests.
 SRCDIRS  +=  ${TOP}/src/appl/unittest/utgpio
 CFE_INC += ${TOP}/src/appl/unittest/include
-UTOBJS += utgpio_intr.o utgpio_isr.o
+UTOBJS += utgpio_intr.o utgpio_isr.o utgpio_intr_latency.o \
+          utgpio_intr_regression.o
 
-# Add GPIO Support
+# Add CMICx-related driver Support
 SRCDIRS += ${TOP}/src/driver/hmi/cmicx/src
 CFE_INC += ${TOP}/src/driver/hmi/cmicx/include
-SWITCHOBJ += cmicx_gpio.o
+SWITCHOBJ += cmicx_gpio.o cmicx_miim.o
+
+# Add MCS support
+SRCDIRS += ${TOP}/src/driver/mcs/src
+SRCDIRS += ${TOP}/src/driver/mcs/src/cmicx
+CFE_INC += ${TOP}/src/driver/mcs/include
+SWITCHOBJ += cmicx_mcs.o mcs.o flmcs.o
+
+# Add M0SSQ support
+SRCDIRS += ${TOP}/src/driver/m0ssq/main
+SRCDIRS += ${TOP}/src/driver/m0ssq/hmi
+CFE_INC += ${TOP}/src/driver/m0ssq/include
+SWITCHOBJ += m0ssq.o m0ssq_mbox.o m0ssq_fifo.o m0ssq_mem.o
+SWITCHOBJ += cmicx_m0ssq.o cmicx_m0ssq_fw.o flm0ssq.o
+
+# LED Support
+SRCDIRS += ${TOP}/src/appl/unittest/utled
+CFE_INC += ${TOP}/src/appl/unittest/include
+SRCDIRS += ${TOP}/src/driver/led/main
+SRCDIRS += ${TOP}/src/driver/led/hmi
+CFE_INC += ${TOP}/src/driver/led/include
+SWITCHOBJ += cmicx_led.o led.o
+SWITCHOBJ += utled.o
+
+# Binfs support
+SRCDIRS += ${TOP}/src/utils/binfs/main
+CFE_INC += ${TOP}/src/utils/binfs/include
+CFE_INC += ${TOP}/systems/bcm95607x/include/binfs
+SWITCHOBJ += binfs_file_list.o binfs.o
+
+# FW linkscan support
+SRCDIRS += ${TOP}/src/driver/lm/main
+SRCDIRS += ${TOP}/src/driver/lm/hmi/cmicx
+CFE_INC += ${TOP}/src/driver/lm/include
+SWITCHOBJ += lm_drv.o cmicx_fw_linkscan.o fllm.o 
 
 # Add PCM Support
 SRCDIRS += ${TOP}/src/driver/pcm
-SWITCHOBJ += pcm_phyctrl_hounds.o pcm_common.o
+SWITCHOBJ += pcm_phyctrl_hounds.o pcm_portctrl_hounds.o pcm_common.o
+
+# SPI slave management
+SRCDIRS += ${TOP}/src/appl/spimgmt
+SPIMGMTOBJS = spi_mgmt.o
 
 CFE_INC += $(SDK_PATCH_DIR)/include $(SDK_PATCH_DIR)/libs/phymod/include $(SDK_DIR)/include $(SDK_DIR)/libs/phymod/include
 SWITCHOBJ += sdk_phy.o bsl_debug.o
@@ -310,14 +369,10 @@ SWITCHOBJ += sdk_phy.o bsl_debug.o
 #
 
 # Exception.
-RAMOBJS += exchandler.o sal_printf.o sal_console.o sal_libc.o
+RAMOBJS += exchandler.o
 
 # Interrupt System.
-RAMOBJS += intr.o board_intr.o board_gpio.o
-RAMOBJS += cmicx_gpio.o flintr.o flaccess.o field.o
-
-# Application.
-RAMOBJS += utgpio_isr.o
+RAMOBJS += intr.o
 
 ifeq ($(strip ${CFG_SOC_SNAKE_TEST}), 1)
 SWITCHOBJ += flsnaketest.o
@@ -340,13 +395,22 @@ UTILSOBJS += net_utils.o
 SRCDIRS += ${TOP}/src/utils/net
 endif
 
+UTILSOBJS += util_symbol_blk.o util_symbols_iter.o util_symbol_field.o
+SRCDIRS += ${TOP}/src/utils/sym
+
+# symbol table
+SYMDIRS = ${TOP}/src/driver/soc/${CHIP}/auto_generated
+SRCDIRS += ${SYMDIRS}
+SYMOBJS = $(patsubst %.c,%.o,$(notdir $(foreach dir, $(SYMDIRS), $(wildcard $(dir)/*.c))))
+
 #
 # Add the common object files here.
 #
 ALLOBJS += $(KERNELOBJS) $(UTOBJS) $(SALOBJS) $(UIPOBJS) $(APPLOBJS) $(UTILSOBJS)\
            $(UIOBJS) $(BRDIMPLOBJ) $(PERSISOBJS) $(FLASHOBJ) $(SWITCHOBJ)\
            $(HTTPDOBJS) $(GUIOBJS) $(XCMDOBJS) $(XCOMMANDSOBJS) $(LINUX_OBJS)\
-           $(SDKCLIOBJS) $(EDITLINEOBJS) $(SHROBJS) $(RAMOBJS) $(BSPOBJS)
+           $(SDKCLIOBJS) $(EDITLINEOBJS) $(SHROBJS) $(RAMOBJS) $(BSPOBJS) $(SYMOBJS)\
+           $(SPIMGMTOBJS) $(BOARDAPIOBJS)
 
 #
 # Add optional code.  Each option will add to ALLOBJS with its Makefile,
@@ -390,13 +454,19 @@ all : build_date.c ALL
 .PHONY : all
 .PHONY : ALL
 .PHONY : build_date.c
-
+.PHONY : force
 #
 # Build the local tools that we use to construct other source files
 #
 
 HOST_CC = gcc
 HOST_CFLAGS = -g -Wall -Werror -Wstrict-prototypes -Wmissing-prototypes
+
+binfs_file_list.c : force
+	@echo "binfs generation .... "
+	@rm -Rf $(TOP)/systems/bcm95607x/include/binfs/files
+	@mkdir -p $(TOP)/systems/bcm95607x/include/binfs/files
+	@python $(TOP)/tools/genbinfs.py
 
 bin2codefile : ${TOP}/tools/bin2codefile.c
 	$(HOST_CC) $(HOST_CFLAGS) -o bin2codefile ${TOP}/tools/bin2codefile.c
@@ -447,7 +517,7 @@ xcommands : $(patsubst %, %_cbkgen, ${XCOMMAND_XML_TABLES})
 
 %.o : %.c
 	@echo ""
-	$(GCC) $(CFE_CFLAGS) $(CFLAGS) -include $(BUILD_DIR)/conf.h -MP -MD -o $@ $< -c
+	$(GCC) $(CFE_CFLAGS) $(CFLAGS) -D__FILENAME__=\"$(subst $(TOP)/,,$<)\" -include $(BUILD_DIR)/conf.h -MP -MD -o $@ $< -c
 ifeq ($(RELEASE_BUILD),1)
 	$(QUIET)$(TOP)/tools/release_tool.py --target=release_sdklibs --input_file=$(patsubst %.o,%.d, $@) --source_directory=$(SDK_DIR) --destination_directory=$(SDK_RELEASE_DIR)
 endif

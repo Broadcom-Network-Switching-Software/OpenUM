@@ -3,10 +3,11 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 #include "system.h"
 #include <bsp_config.h>
+#include <utils/shr/shr_debug.h>
 
 #ifdef CFG_INTR_INCLUDED
 
@@ -30,6 +31,12 @@ bcm5607x_intr_entry(int unit)
 {
     int intrnum, i, j;
     MHOST_0_MHOST_INTR_STATUSr_t intr_status;
+#ifdef CFG_INTR_CHECK_NO_FLASH_CODE
+    QSPI_BSPI_REGISTERS_MAST_N_BOOT_CTRLr_t qspi_boot_ctrl;
+    QSPI_BSPI_REGISTERS_BUSY_STATUSr_t qspi_busy;
+    bool qspi_mode_save = 0;
+    int timeout = 1000;
+#endif /* CFG_INTR_CHECK_NO_FLASH_CODE */
 
     if (bcm5607x_intr_handling_enable == 0)  {
         return SYS_OK;
@@ -42,6 +49,28 @@ bcm5607x_intr_entry(int unit)
 
         /* Set interrupt context indicator. */
         bcm5607x_intr_context = 1;
+
+#ifdef CFG_INTR_CHECK_NO_FLASH_CODE
+        /* Switch to MSPI to ensure there is no code run on FLASH. */
+        /* Check BSPI is busy or not. */
+        do {
+            READ_QSPI_BSPI_REGISTERS_BUSY_STATUSr(unit, qspi_busy);
+            timeout --;
+        } while(timeout &&
+                QSPI_BSPI_REGISTERS_BUSY_STATUSr_BUSYf_GET(qspi_busy));
+
+        if (timeout == 0) {
+            sal_printf("Check BSPI idle time out\n");
+        }
+
+        /* Save current qspi mode and switch to MSPI mode. */
+        READ_QSPI_BSPI_REGISTERS_MAST_N_BOOT_CTRLr(unit, qspi_boot_ctrl);
+        qspi_mode_save =
+            QSPI_BSPI_REGISTERS_MAST_N_BOOT_CTRLr_MAST_N_BOOTf_GET(qspi_boot_ctrl);
+        QSPI_BSPI_REGISTERS_MAST_N_BOOT_CTRLr_MAST_N_BOOTf_SET
+            (qspi_boot_ctrl, 1);
+        WRITE_QSPI_BSPI_REGISTERS_MAST_N_BOOT_CTRLr(unit, qspi_boot_ctrl);
+#endif /* CFG_INTR_CHECK_NO_FLASH_CODE */
     }
 
     for (intrnum = intrnum_min; intrnum < intrnum_max; intrnum += 32) {
@@ -64,6 +93,13 @@ bcm5607x_intr_entry(int unit)
 
         /* Clear interrupt context indicator. */
         bcm5607x_intr_context = 0;
+
+#ifdef CFG_INTR_CHECK_NO_FLASH_CODE
+        /* Restore qspi mode. */
+        QSPI_BSPI_REGISTERS_MAST_N_BOOT_CTRLr_MAST_N_BOOTf_SET
+            (qspi_boot_ctrl, qspi_mode_save);
+        WRITE_QSPI_BSPI_REGISTERS_MAST_N_BOOT_CTRLr(unit, qspi_boot_ctrl);
+#endif
 
     }
 
@@ -156,8 +192,6 @@ bcm5607x_intr_handling_save_disable(int unit, uint32 *status) {
         return SYS_ERR;
     }
 
-    bcm5607x_intr_handling_enable = 0;
-
     if (!polled_intr) {
 #ifndef __LINUX__
         /* Read CPSR.IRQ bit to tmp CPSR then disable interrupt. */
@@ -167,8 +201,10 @@ bcm5607x_intr_handling_save_disable(int unit, uint32 *status) {
 #endif
     }
 
+    bcm5607x_intr_handling_enable = 0;
+
     if (status) {
-        *status = (tmp != 0);
+        *status = (tmp == 0);
     }
 
     return SYS_OK;
@@ -186,14 +222,14 @@ bcm5607x_intr_handling_restore_enable(int unit, uint32 *status) {
         return SYS_OK;
     }
 
+    bcm5607x_intr_handling_enable = 1;
+
     if (!polled_intr) {
 #ifndef __LINUX__
         /* Enable interrupt. */
         asm("cpsie i");
 #endif
     }
-
-    bcm5607x_intr_handling_enable = 1;
 
     return SYS_OK;
 }

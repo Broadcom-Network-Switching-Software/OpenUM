@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef _BOARD_H_
@@ -67,10 +67,10 @@
 #define BOARD_LOADER_ADDR              (0x1C000000)
 
 /* Frimware address to program */
-#define BOARD_FIRMWARE_ADDR            (0x1C600000)
+#define BOARD_FIRMWARE_ADDR            (0x1C280000)
 
 /* Frimware address to program */
-#define BOARD_SECONDARY_FIRMWARE_ADDR  (0x1CC00000)
+#define BOARD_SECONDARY_FIRMWARE_ADDR  (0x1C500000)
 
 /* Shared internal SRAM memory address for loader and firmware */
 #define BOARD_BOOKKEEPING_ADDR         (0x01200000)
@@ -81,29 +81,29 @@
 #define CFG_FLASH_START_ADDRESS        (0x1C000000)
 
 /* Factory Address */
-#define CFG_FACTORY_CONFIG_BASE        (0x1C200000)
+#define CFG_FACTORY_CONFIG_BASE        (0x1C250000)
 #define CFG_FACTORY_CONFIG_OFFSET      (0x0)
 /* Config address */
-#define CFG_CONFIG_BASE                (0x1C300000)
+#define CFG_CONFIG_BASE                (0x1C260000)
 #define CFG_CONFIG_OFFSET              (0x000)
 #define CFG_CONFIG_SIZE                (0x8000 - CFG_CONFIG_OFFSET)
 /* Persistence address */
-#define MEDIUM_FLASH_START_ADDRESS     (0x1C400000)
+#define MEDIUM_FLASH_START_ADDRESS     (0x1C270000)
 #define MEDIUM_FLASH_SIZE              (0x8000)
 #else
 /* FLASH base address */
 #define CFG_FLASH_START_ADDRESS        (0x1C000000)
 
 /* Factory Address */
-#define CFG_FACTORY_CONFIG_BASE        (0x1C200000)
+#define CFG_FACTORY_CONFIG_BASE        (0x1C250000)
 #define CFG_FACTORY_CONFIG_OFFSET      (0x0)
 /* Config address */
-#define CFG_CONFIG_BASE                (0x1C300000)
+#define CFG_CONFIG_BASE                (0x1C260000)
 #define CFG_CONFIG_OFFSET              (0x000)
 #define CFG_CONFIG_SIZE                (0x8000 - CFG_CONFIG_OFFSET)
 
 /* Persistence address */
-#define MEDIUM_FLASH_START_ADDRESS     (0x1C400000)
+#define MEDIUM_FLASH_START_ADDRESS     (0x1C270000)
 #define MEDIUM_FLASH_SIZE              (0x8000)
 #endif
 
@@ -121,6 +121,7 @@ extern void board_early_init(void);
 extern sys_error_t board_init(void);
 extern void board_late_init(void);
 extern uint8  board_linkscan_disable;
+extern uint8  board_linkup_message;
 extern uint8  board_linkdown_message;
 extern uint8  board_upload_vc;
 #endif

@@ -1,0 +1,126 @@
+#
+# This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
+# 
+# Copyright 2007-2021 Broadcom Inc. All rights reserved.
+#
+
+#
+# Vendor Configuration
+#
+# Each entry in the file consists of a single line of the form:
+#	 <Parameter>=<Value>
+# UM software provides a tool (um_config_insert.pl) to insert the Vendor
+# configuration(config.um) into the precompiled firmware image (*.image).
+# Then the firmware image may do different setting in the intialization
+# based on the configuration.
+#
+# Usage to insert Vendor Configuration into the precompiled firmware
+#      um_config_insert.pl -image  <image_file> [options]
+#          -image, -i: specify the image file where the config will be inserted
+#          -config, -c: optionally specify config file name,
+#                           default name is "config.um"
+#          -force: force to overwrite previous configuration in the image file
+#          -verbose: show more debug log
+#          -generate, -g: only generate the config binary file for web update
+#          -h: show usage
+#
+
+#     SKU Option :
+#
+#         - Purpose: Specifies option (which is a positive integer) of SKU.
+#
+
+sku_option=3
+
+#
+# "coe_scenario" controls which COE forwarding rule is enabled by
+# default.
+#
+# - coe_scenario=<mode>
+#
+# <mode>: 3 - op03-4x25g_2x100g
+# <mode>: 4 - op05-10x10g_2x100g
+# <mode>: 5 - op05-12x10g_2x100g
+# <mode>: 6 - op05-12x10g_1x100g_1x50g
+#
+#coe_scenario=3
+
+#
+#  "portmap" defines the port configuration which specifies
+#  the logical to physical port mapping and port maximun speed.
+#
+#  - portmap_<logical_port_number>=<physical port number>:<max_speed in Gb>
+#
+#  Example: portmap_2=4:10
+#
+
+# TSCF 0
+portmap_2=62:25
+portmap_3=63:25
+portmap_4=64:25
+portmap_5=65:25
+# TSCF 1
+portmap_6=66:100
+# TSCF 2
+portmap_7=70:100
+
+#
+# "serdes_fiber_pref" selects either fiber or SGMII when auto-detection is off.
+#
+# - serdes_fiber_pref=0|1
+#
+serdes_fiber_pref=0
+
+#
+# "phy_an_c73" controls clause 73 auto-negotiation.
+#
+# - phy_an_c73=<mode>
+#
+# <mode>: 0 - Disable. 2 - Enable.
+#
+phy_an_c73=2
+
+#
+# "phy_an_c37" controls clause 37 auto-negotiation.
+#
+# - phy_an_c37=<mode>
+#
+# <mode>: 0 - Disable. 2 - Enable.
+#
+phy_an_c37=0
+
+#     Uplink Ports:
+#
+#     - Purpose: Assign uplink ports, other ports would be downlink ports.
+#
+#     - uplink_logical_ports=<port list>
+#       Where <port list> could be 6-7
+
+uplink_logical_ports=6-7
+
+#
+# Lane swap
+#
+# "xgxs_rx_lane_map" remaps XGXS rx lanes to desired mapping.
+# "xgxs_tx_lane_map" remaps XGXS tx lanes to desired mapping.
+#
+#  - xgxs_rx_lane_map_<logical_port_number>=<lane_map>
+#  - xgxs_tx_lane_map_<logical_port_number>=<lane_map>
+#
+# <logical_port_number>: The first logical port number of the core.
+# <lane_map>: Four bits were used for specifying each lane in the format of
+# Lane 0 (bit 15-12), Lane 1 (bit 11-8), lane 2 (bit 7-4), and lane 3 (bit 3-0).
+#
+# For example, to reverse the rx lane mapping in 3, 2, 1, 0 order,
+# set xgxs_rx_lane_map_2=0x3210.
+#
+
+# TSCF 0
+xgxs_rx_lane_map_2=0x1032
+xgxs_tx_lane_map_2=0x3201
+# TSCF 1
+xgxs_rx_lane_map_6=0x0213
+xgxs_tx_lane_map_6=0x3201
+# TSCF 2
+xgxs_rx_lane_map_7=0x1023
+xgxs_tx_lane_map_7=0x3201

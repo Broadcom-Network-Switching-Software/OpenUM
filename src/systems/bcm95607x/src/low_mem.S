@@ -2,7 +2,7 @@
  * $Id: low_mem.S,v 1.6 Broadcom SDK $
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  *
  * File:    low_mem.S
  * Purpose: H/W exception handling
@@ -218,6 +218,7 @@ dtcm_setup:
         bhi     1b
 2:
 
+        /* The below fix_rel related codes are dummy because r9 will be 0 */
         cmp     r9, #0
         beq     4f
         ldr     r6, data_rel_start_ref
@@ -248,7 +249,13 @@ dtcm_setup:
 
 #ifndef __BOOTLOADER__
         /* Copy vector related code/data to ATCM */
+vect_cp_start:
+        adr     r4, vect_cp_start
+        ldr     r5, =vect_cp_start
+        /* Store addr offset in r4 */
+        sub     r4, r4, r5
         ldr     r0, vector_start_ref
+        add     r0, r0, r4
         ldr     r1, vector_size_ref
         add     r1, r1, r0
         ldr     r2, vector_ram_start_ref

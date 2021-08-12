@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
  
 #ifdef __C51__
@@ -206,6 +206,22 @@ APIFUNC(brdimpl_tx)(sys_pkt_t *pkt, BOARD_TX_CALLBACK cbk) REENTRANT
     } else {
         flags &= ~SOC_TX_FLAG_USE_UNTAG_PORT_BITMAP;
         PBMP_CLEAR(spkt->untag_bitmap);
+    }
+    if (pkt->flags & SYS_TX_FLAG_TIMESYNC) {
+        flags |= SOC_TX_FLAG_TIMESYNC;
+        if (pkt->flags & SYS_TX_FLAG_TIMESYNC_ONE_STEP) {
+            flags |= SOC_TX_FLAG_TIMESYNC_ONE_STEP;
+        }
+        if (pkt->flags & SYS_TX_FLAG_TIMESYNC_INGRESS_SIGN) {
+            flags |= SOC_TX_FLAG_TIMESYNC_INGRESS_SIGN;
+        }
+        if (pkt->flags & SYS_TX_FLAG_TIMESYNC_HDR_START_OFFSET) {
+            flags |= SOC_TX_FLAG_TIMESYNC_HDR_START_OFFSET;
+            spkt->timestamp_offset = pkt->timestamp_offset;
+        }
+        if (pkt->flags & SYS_TX_FLAG_TIMESYNC_REGEN_UDP_CHKSUM) {
+            flags |= SOC_TX_FLAG_TIMESYNC_REGEN_UDP_CHKSUM;
+        }
     }
     if (uplist_is_empty(pkt->tx_uplist) == SYS_OK) {
         switch(pkt->tx_tag_mode) {

@@ -3,7 +3,7 @@
 /*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #include <system.h>
@@ -34,8 +34,8 @@ extern int bsl_init(bsl_config_t *config);
   */
 
 static int 
-bsl_out_hook(bsl_meta_t *meta, const char *fmt, va_list arg_ptr) {
-
+bsl_out_hook(bsl_meta_t *meta, const char *fmt, va_list arg_ptr)
+{
 #if CFG_CONSOLE_ENABLED
 	char buf[1024];
 	vsprintf(buf, fmt, arg_ptr);
@@ -58,25 +58,27 @@ bsl_out_hook(bsl_meta_t *meta, const char *fmt, va_list arg_ptr) {
   *      1: print it 
   */
 
-static int bsl_check_hook(bsl_packed_meta_t val) {
+static int
+bsl_check_hook(bsl_packed_meta_t val)
+{
+    int severity = BSL_SEVERITY_GET(val);
+    int ls = val & 0xffffff00;
 
-    if ((val & 0xFFFFFF00) == BSL_LS_SOC_COMMON) return 0;
-    if ((val & 0xFFFFFF00) == BSL_LS_SOC_MIIM)   return 0;
-    if ((val & 0xFFFFFF00) == BSL_LS_SOC_MII)    return 0;
-    if ((val & 0xFFFFFF00) == BSL_LS_SOC_PHY)    return 0;
-    if ((val & 0xFFFFFF00) == BSL_LS_BCM_PORT)   return 0;
-    if ((val & 0xFFFFFF00) == BSL_LS_BCM_PHY)    return 0;
-    if ((val & 0xFFFFFF00) == BSL_LS_SOC_PHYMOD) return 0;
+    if (ls == BSL_LS_SOC_PHYMOD ||
+        ls == BSL_LS_SOC_PHY ||
+        ls == BSL_LS_SOC_COMMON) {
+        if (severity >= bslSeverityFatal && severity <= bslSeverityWarn) {
+            return 1;
+        }
+    }
 
     return 0;
 }
 
-
 static bsl_config_t bsl_hook = { bsl_out_hook, bsl_check_hook };
 
-
-void  bsl_debug_init(void) {
-      bsl_init(&bsl_hook);
+void
+bsl_debug_init(void)
+{
+    bsl_init(&bsl_hook);
 }
-
-

@@ -3,15 +3,27 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
-
 #include "system.h"
 #include "appl/cli.h"
 #include "appl/persistence.h"
 #include "utils/system.h"
 #include "utils/net.h"
 #include <sal.h>
+#include <appl/spi_mgmt.h>
+
+extern char get_char(void);
+extern int um_console_write(const char *buffer,int length);
+extern void sal_console_init(int reset);
+
+#ifdef CFG_SDKCLI_INCLUDED
+#include "appl/sdkcli/bcma_cli.h"
+#include "appl/sdkcli/bcma_cli_unit.h"
+#include "appl/sdkcli/bcma_clicmd.h"
+#include "appl/editline/bcma_readline.h"
+#endif /* CFG_SDKCLI_INCLUDED */
+
 #ifdef __C51__
 #ifdef CODE_USERCLASS
 #pragma userclass (code = init)
@@ -59,6 +71,147 @@ STATIC uint8 rx_buffers[DEFAULT_RX_BUFFER_COUNT][DEFAULT_RX_BUFFER_SIZE];
 #endif
 #endif /* CFG_RXTX_SUPPORT_ENABLED && !defined(__BOOTLOADER__) */
 
+#ifdef CFG_SDKCLI_INCLUDED
+static int
+bcma_io_term_read(void *buf, int max)
+{
+    if (!buf) {
+        return 0;
+    } else {
+        char *c = buf;
+        *c = get_char();
+        return 1;
+    }
+}
+
+static int
+bcma_io_term_write(const void *buf, int count)
+{
+    const char *c_buf = buf;
+    return um_console_write(c_buf, count);
+}
+
+int
+bcma_io_term_mode_set(int reset)
+{
+    sal_console_init(reset);
+    return 0;
+}
+
+int
+bcma_io_term_winsize_get(int *cols, int *rows)
+{
+    if (cols == NULL || rows == NULL) {
+        return -1;
+    }
+    *cols = 80;
+    *rows = 24;
+    return 0;
+}
+
+static bcma_editline_io_cb_t el_io_cb = {
+    bcma_io_term_read,
+    bcma_io_term_write,
+    bcma_io_term_mode_set,
+    bcma_io_term_winsize_get,
+    NULL,
+    NULL
+};
+
+APISTATIC int
+sdkcli_gets(struct bcma_cli_s *cli, const char *prompt, int max, char *buf)
+{
+    char *str = NULL;
+
+    if (buf == NULL) {
+        return BCMA_CLI_CMD_BAD_ARG;
+    }
+
+    str = readline(prompt); /* provided by editline */
+    if (str == NULL) {
+        return BCMA_CLI_CMD_EXIT;
+    } else {
+        int len = sal_strlen(str) + 1;
+        sal_memcpy(buf, str, len > max ? max : len);
+        buf[max - 1] = '\0';
+        if (len > max) {
+            sal_printf("WARNING: User inputs %d characters (limitation : %d)\n",
+                        sal_strlen(str), max - 1);
+        }
+    }
+    bcma_rl_free(str); /* free the memory that allocated by editline */
+    return BCMA_CLI_CMD_OK;
+}
+
+APISTATIC void
+sdkcli_history_add(int max, char *str)
+{
+    char *cmd_last = NULL;
+    char *p = str;
+
+    /* Remove the heading spaces if any. */
+    while (p && sal_isspace(*p)) {
+        p++;
+    }
+
+    /* Do no add empty string to history. */
+    if (!p || !*p) {
+        return;
+    }
+
+    /* Do not add the last duplicate command to history */
+    cmd_last = bcma_editline_history_get(-1);
+    if (cmd_last && sal_strcmp(p, cmd_last) == 0) {
+        return;
+    }
+
+    /* Add command to history */
+    add_history(p);
+}
+
+APISTATIC int
+sdkcli_unit_max(void *cookie)
+{
+    return 0;
+}
+
+APISTATIC int
+sdkcli_unit_valid(void *cookie, int unit)
+{
+    if (unit == 0) {
+        return TRUE;
+    } else {
+        return FALSE;
+    }
+}
+
+APISTATIC bcma_cli_unit_cb_t sdkcli_unit_cb = {
+    .unit_max = sdkcli_unit_max,
+    .unit_valid = sdkcli_unit_valid,
+};
+
+APISTATIC void
+APIFUNC(sdkcli)(void) REENTRANT
+
+{
+    bcma_cli_t *sdk_cli = NULL;
+
+    /* Initialize SDK-version of readline */
+    bcma_editline_init(&el_io_cb, NULL);
+
+    sdk_cli = bcma_cli_create();
+    bcma_cli_input_cb_set(sdk_cli, "CLI", sdkcli_gets, sdkcli_history_add);
+    bcma_cli_unit_cb_set(sdk_cli, &sdkcli_unit_cb, NULL);
+    bcma_clicmd_add_basic_cmds(sdk_cli);
+    bcma_clicmd_add_switch_cmds(sdk_cli);
+    bcma_clicmd_add_pktdma_cmds(sdk_cli);
+    bcma_clicmd_add_coe_cmds(sdk_cli);
+    bcma_cli_unit_set(sdk_cli, 0);
+    bcma_cli_cmd_loop(sdk_cli);
+    bcma_cli_destroy(sdk_cli);
+    sdk_cli = NULL;
+}
+#endif /* CFG_SDKCLI_INCLUDED */
 
 /* Function:
  *   main
@@ -186,8 +339,20 @@ main(void)
 #ifdef CFG_PCM_SUPPORT_INCLUDED
     ui_pcm_init();
 #endif
-#if CFG_CLI_ENABLED
+
+#ifdef CFG_SPI_MGMT_INCLUDED
+#if (!defined(__LINUX__) && !defined(__bootloader__))
+    /* Enable SPI management */
+    spi_mgmt_enable();
+#endif
+#endif /* CFG_SPI_MGMT_INCLUDED */
+
+#if CFG_CLI_ENABLED || defined(CFG_SDKCLI_INCLUDED)
+#ifdef CFG_SDKCLI_INCLUDED
+    sdkcli();
+#elif CFG_CLI_ENABLED
     cli();
+#endif
 #else
     for(;;) POLL();
 #endif

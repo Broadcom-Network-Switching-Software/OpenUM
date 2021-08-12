@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #include <stdarg.h>
@@ -29,7 +29,7 @@ extern void sal_debugf(const char *fmt, ...);
     *
     *  put_char and get_char 
  */
-
+char put_char(char c) __attribute__((section(".2ram")));
 char
 put_char(char c) {
 
@@ -59,7 +59,8 @@ char get_char(void){
     *
     *  Console output function
  */
-
+int um_console_write(const char *buffer,int length)
+                        __attribute__((section(".2ram")));
 int 
 um_console_write(const char *buffer,int length)
 {
@@ -80,6 +81,7 @@ um_console_write(const char *buffer,int length)
     *
     *  Console output function
  */
+int um_console_print(const char *str) __attribute__((section(".2ram")));
 int
 um_console_print(const char *str)
 {
@@ -110,6 +112,7 @@ sal_console_init(int reset)
 
 #endif /* CFG_CONSOLE_ENABLED */
 
+void sal_printf(const char *fmt, ...) __attribute__((section(".2ram")));
 void
 sal_printf(const char *fmt, ...)
 {
@@ -118,7 +121,7 @@ sal_printf(const char *fmt, ...)
     char buf[256];
 
     va_start(arg_ptr, fmt);
-    vsprintf(buf, fmt, arg_ptr);
+    sal_vsnprintf(buf, 1024, fmt, arg_ptr);
     va_end(arg_ptr);
 
     um_console_print(buf);
@@ -176,6 +179,16 @@ sal_char_avail(void)
 #else
     return FALSE;
 #endif
+}
+
+int
+sal_getchar_nonblock(char *c) {
+    if (!c || !(UART_READREG(R_UART_LSR) & LSR_RXRDY)) {
+        return -1;
+    } else {
+        *c = (char)(UART_READREG(R_UART_DATA) & 0xFF);
+        return 0;
+    }
 }
 
 char

@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #include "system.h"
@@ -12,8 +12,19 @@
 #include "brdimpl.h"
 #include "utils/nvram.h"
 #include "utils/system.h"
+#include "utils/shr/shr_debug.h"
 #include "ns16550.h"
-#include "wdt.h"
+#include <boardapi/mcs.h>
+#include <led.h>
+#include <cmicx_m0ssq_internal.h>
+#include <cmicx_led_internal.h>
+#include <binfs.h>
+
+/*! Common information for LED FW and UM. */
+#include <cmicx_customer_led_common.h>
+
+/* Hardware linkscan driver. */
+#include <lm_drv_internal.h>
 
 /* __BOOT_UART_TRAP: For debug only !!! please define it as zero at final product
                                      In 50ms since power on,  If there is any character comes from uart,
@@ -28,6 +39,10 @@ extern void sal_timer_task(void *param);
 
 extern void enable_arm_cyclecount(void);
 
+#if defined(CFG_BROADSYNC_INCLUDED) && defined(CFG_MCS_INCLUDED)
+extern void bs_exception_detect(void *param);
+#endif /* defined(CFG_BROADSYNC_INCLUDED) && defined(CFG_MCS_INCLUDED) */
+
 #if CFG_CONSOLE_ENABLED
 static const char *um_fwname = target;
 #endif /* CFG_CONSOLE_ENABLED */
@@ -35,106 +50,6 @@ static const char *um_fwname = target;
 #ifdef CFG_RESET_BUTTON_INCLUDED
 uint8 reset_button_enable = 0;
 #endif /* CFG_RESET_BUTTON_INCLUDED */
-
-#ifdef CFG_LED_MICROCODE_INCLUDED
-
-/* Board Serial LED layout */
-/* Ex: BCM956174R */
-const uint8 BCM956174R_ledup0[] =
-{
-    57, 56, 55, 54, 53, 52, 51, 50, /* QTC0.0 QTC0.1 */
-    49, 48, 47, 46, 45, 44, 43, 42, /* QTC1.1 QTC1.1 */
-    33, 32, 31, 30, 29, 28, 27, 26  /* QTC1.2 QTC1.3 */
-};
-
-const uint8 BCM956174R_ledup1[] =
-{
-    86,              /* CLPORT0 */
-    82,              /* XLPORT6 */
-    77, 76, 75, 74,  /* XLPORT4 */
-};
-
-const ledup_ctrl_t BCM956174R_ledup_ctrl = {
-   .pport_seq = { (uint8 *)BCM956174R_ledup0, (uint8 *)BCM956174R_ledup1 },
-   .port_count = { sizeof(BCM956174R_ledup0), sizeof(BCM956174R_ledup1) },
-   .leds_per_port = 2,
-   .bits_per_led  = 1,
-   .num_of_color = 1,
-   .led_blink_period = 50,    /* 30 ms * 50 = 1.5s */
-   .led_tx_rx_extension = 2,  /* 2 *30ms = 60ms */
-   .bits_color = {0, 0, 0, 0},
-   .bits_color_off = 1,
-   .fix_bits_total = {0, 0},
-   .led_mode = {LED_MODE_LINK, LED_MODE_TXRX, 0},
-};
-
-
-void
-board_ledup_init(const ledup_ctrl_t* p_ledup) {
-    bcm5607x_ledup_init(p_ledup);
-}
-
-#endif
-/* Access to shadowed registers at offset 0x1c */
-#define REG_1C_SEL(_s)                  ((_s) << 10)
-#define REG_1C_WR(_s,_v)                (REG_1C_SEL(_s) | (_v) | 0x8000)
-
-/* Access expansion registers at offset 0x15 */
-#define MII_EXP_MAP_REG(_r)             ((_r) | 0x0f00)
-#define MII_EXP_UNMAP                   (0)
-
-/*
- * Non-standard MII Registers
- */
-#define MII_ECR_REG             0x10 /* MII Extended Control Register */
-#define MII_EXP_REG             0x15 /* MII Expansion registers */
-#define MII_EXP_SEL             0x17 /* MII Expansion register select */
-#define MII_TEST1_REG           0x1e /* MII Test Register 1 */
-#define RDB_LED_MATRIX          0x1f /* LED matrix mode */
-
-void board_phy_led_init(void) {
-    uint8 unit=0;
-    int lport, pport;
-
-#ifdef CFG_LED_MICROCODE_INCLUDED
-    if (sal_strcmp(board_name(), "BCM956174R") == 0) {
-        board_ledup_init(&BCM956174R_ledup_ctrl);
-    } else {
-        board_ledup_init(NULL); /* To sort ledup scan out based on uport */
-    }
-#endif
-
-    if(sal_strcmp(board_name(), "BCM956070K") == 0)
-    {
-        for (lport = BCM5607X_LPORT_MIN; lport <= BCM5607X_LPORT_MAX ; lport++) {
-             pport = SOC_PORT_L2P_MAPPING(lport);
-             if (pport < 0) continue;
-             if (pcm_phy_driver_name_get(unit, lport, 0) !=  NULL) {
-                 /* Only need to set first port of phy about LED MATRIX mode*/
-                 if (sal_strstr(pcm_phy_driver_name_get(unit, lport, 0), "54292")) {
-                     if (((pport - 2) % 8) == 0) {
-
-                         //extering RDB mode
-                         pcm_phy_reg_set(unit, lport, 0, MII_EXP_SEL, 0xf7e);
-                         pcm_phy_reg_set(unit, lport, 0, MII_EXP_REG, 0x0000);
-
-                         pcm_phy_reg_set(unit, lport, 0, MII_TEST1_REG, 0x85f);
-                         pcm_phy_reg_set(unit, lport, 0, RDB_LED_MATRIX, 0x23);
-                         pcm_phy_reg_set(unit, lport, 0, MII_TEST1_REG, 0x87);
-                         pcm_phy_reg_set(unit, lport, 0, RDB_LED_MATRIX, 0x8000);
-
-                         //exit RDB mode
-                         pcm_phy_reg_set(unit, lport, 0, 0x1E, 0x0087);
-                         pcm_phy_reg_set(unit, lport, 0, 0x1F, 0x0000);
-
-                     }
-                 }
-                 board_phy_led_mode_set(lport, BOARD_PHY_LED_NORMAL);
-            }
-        }
-    }
-
-}
 
 #if CFG_CONSOLE_ENABLED
 
@@ -181,13 +96,25 @@ board_early_init(void)
    void (*funcptr)(void);
 
 #ifdef __LINUX__
+#ifdef CFG_WDT_INCLUDED
+    {
+        /* Always disable watchdog timer when running external CPU mode
+         * if it has been triggered by R5
+         */
+        IPROCGENRES_WDT0_WDT_WDOGCONTROLr_t iproc_wdt0_wdogcontrol;
+        int unit = 0;
+
+        IPROCGENRES_WDT0_WDT_WDOGCONTROLr_CLR(iproc_wdt0_wdogcontrol);
+        WRITE_IPROCGENRES_WDT0_WDT_WDOGCONTROLr(unit, iproc_wdt0_wdogcontrol);
+    }
+#endif
     
-    MHOST_0_CR5_RST_CTRLr_t cr5_ctrl;
-    READ_MHOST_0_CR5_RST_CTRLr(0, cr5_ctrl);
-    MHOST_0_CR5_RST_CTRLr_CPU_HALT_Nf_SET(cr5_ctrl, 0);
-    WRITE_MHOST_0_CR5_RST_CTRLr(0, cr5_ctrl);
-    MHOST_0_CR5_RST_CTRLr_RESET_Nf_SET(cr5_ctrl, 0);
-    WRITE_MHOST_0_CR5_RST_CTRLr(0, cr5_ctrl);
+    MHOST_CR5_RST_CTRLr_t cr5_ctrl;
+    READ_MHOST_CR5_RST_CTRLr(0, 0, cr5_ctrl);
+    MHOST_CR5_RST_CTRLr_CPU_HALT_Nf_SET(cr5_ctrl, 0);
+    WRITE_MHOST_CR5_RST_CTRLr(0, 0, cr5_ctrl);
+    MHOST_CR5_RST_CTRLr_RESET_Nf_SET(cr5_ctrl, 0);
+    WRITE_MHOST_CR5_RST_CTRLr(0, 0, cr5_ctrl);
 #endif
 
     /* Initialize timer using default clock */
@@ -197,15 +124,14 @@ board_early_init(void)
 
 #if CFG_CONSOLE_ENABLED
     board_console_init(CFG_UART_BAUDRATE, BOARD_CCA_UART_CLOCK);
-    sal_printf("\n\nFirelight %s-%d.%d.%d-PRE1\n",
+    sal_printf("\n\nFirelight %s-%d.%d.%d\n",
             um_fwname, CFE_VER_MAJOR, CFE_VER_MINOR, CFE_VER_BUILD);
     sal_printf("Build Date: %s. Build Time: %s\n", __DATE__, __TIME__);
 #endif /* CFG_CONSOLE_ENABLED */
 
 #if CFG_FLASH_SUPPORT_ENABLED
-   /* Flash driver init */
-   flash_init(NULL);
-
+    /* Flash driver init */
+    flash_init(NULL);
 #endif /* CFG_FLASH_SUPPORT_ENABLED */
 }
 
@@ -213,205 +139,29 @@ board_early_init(void)
 static void
 bcm5607x_fp_init(void)
 {
-    /*
-     * Slice 0: Trap Layer 4 protocol packets.
-     * SLICE0_F2 = 0 (L4_DST and L4_SRC)
-     *
-     * Slice 1:
-     * Ingress rate limit (SLICE1_F3 = 2)
-     * Match system_mac (SLICE1_F2 = 5)
-     *
-     * Slice 2:
-     *  (1)Port-based QoS  (SLICE2_F3 = 2)
-     *  (2)Make 1P priority have precedence over DSCP(SLICE2_F1 = 6)
-     *  Note (1) and (2) are mutually exclusive.
-     *
-     * Slice 3: Loop detect
-     * Slice3_F3 = 2, Slice3_F2 = 8, Slice3_F1 = 4;
- */
-
-#if (CFG_UIP_STACK_ENABLED)
-    FP_TCAMm_t fp_tcam;
-    FP_GLOBAL_MASK_TCAMm_t fp_global_mask_tcam;
-    FP_POLICY_TABLEm_t fp_policy_table;
-    uint32 mac_addr32[2], ones[2];
+#ifdef CFG_COE_INCLUDED
+    fl_coe_ifp_init();
 #endif
+
+#ifdef CFG_SWITCH_QOS_INCLUDED
     FP_PORT_FIELD_SELm_t fp_port_field_sel;
-    FP_SLICE_ENABLEr_t fp_slice_enable;
-    FP_SLICE_MAPm_t fp_slice_map;
-    PORTm_t port_entry;
-    int pport, lport;
+    int i;
 
-
-#if (CFG_UIP_STACK_ENABLED)
-    IFP_REDIRECTION_PROFILEm_t ifp_redirection_profile;
-#endif /* CFG_UIP_STACK_ENABLED */
-
-#if CFG_UIP_STACK_ENABLED
-    uint8 mac_addr[6];
-#endif /* CFG_UIP_STACK_ENABLED */
-
-    /* Enable FILTER_ENABLE[bit 0] for all ports, include CPU. */
-    for (pport = 0; pport <= BCM5607X_PORT_MAX; pport++) {
-        if (1 == pport) {
-            continue;
-        }
-        READ_PORTm(0, pport, port_entry);
-        PORTm_FILTER_ENABLEf_SET(port_entry, 1);
-        WRITE_PORTm(0, pport, port_entry);
+    for (i = BCM5607X_LPORT_MIN; i <= BCM5607X_LPORT_MAX; i++) {
+        READ_FP_PORT_FIELD_SELm(0, i, fp_port_field_sel);
+        /* for 802.1p, Set SLICE4_F3 = 3(Vlan qualifier) */
+        FP_PORT_FIELD_SELm_SLICE4_F1f_SET(fp_port_field_sel, 0x4);
+        FP_PORT_FIELD_SELm_SLICE4_F2f_SET(fp_port_field_sel, 0x8);
+        FP_PORT_FIELD_SELm_SLICE4_F3f_SET(fp_port_field_sel, 0x3);
+        FP_PORT_FIELD_SELm_SLICE4_DOUBLE_WIDE_MODEf_SET(fp_port_field_sel, 0);
+        /* for MPLS_EXP, Set F2f = 5(ETHERTYPE), F1f=9(DATA) */
+        FP_PORT_FIELD_SELm_SLICE5_F1f_SET(fp_port_field_sel, 0x4);
+        FP_PORT_FIELD_SELm_SLICE5_F2f_SET(fp_port_field_sel, 0x8);
+        FP_PORT_FIELD_SELm_SLICE5_F3f_SET(fp_port_field_sel, 0x3);
+        FP_PORT_FIELD_SELm_SLICE5_DOUBLE_WIDE_MODEf_SET(fp_port_field_sel, 0);
+        WRITE_FP_PORT_FIELD_SELm(0, i, fp_port_field_sel);
     }
-
-    FP_SLICE_ENABLEr_FP_SLICE_ENABLE_ALLf_SET(fp_slice_enable, 0xFF);
-    FP_SLICE_ENABLEr_FP_LOOKUP_ENABLE_ALLf_SET(fp_slice_enable, 0xFF);
-    WRITE_FP_SLICE_ENABLEr(0, fp_slice_enable);
-
-    for (lport = BCM5607X_LPORT_MIN; lport <= BCM5607X_LPORT_MAX; lport++) {
-        /* Slice 0: F2 = 0 L4DstPort;  F3=11 SrcPort for MDNS*/
-        READ_FP_PORT_FIELD_SELm(0, lport , fp_port_field_sel);
-        FP_PORT_FIELD_SELm_SLICE0_F2f_SET(fp_port_field_sel, 0);
-        FP_PORT_FIELD_SELm_SLICE0_F3f_SET(fp_port_field_sel, 0xb);
-        WRITE_FP_PORT_FIELD_SELm(0, lport, fp_port_field_sel);
-    }
-
-    FP_SLICE_MAPm_CLR(fp_slice_map);
-    FP_SLICE_MAPm_VIRTUAL_SLICE_0_PHYSICAL_SLICE_NUMBER_ENTRY_0f_SET(fp_slice_map, 0);
-    FP_SLICE_MAPm_VIRTUAL_SLICE_0_VIRTUAL_SLICE_GROUP_ENTRY_0f_SET(fp_slice_map, 0);
-    FP_SLICE_MAPm_VIRTUAL_SLICE_1_PHYSICAL_SLICE_NUMBER_ENTRY_0f_SET(fp_slice_map, 1);
-    FP_SLICE_MAPm_VIRTUAL_SLICE_1_VIRTUAL_SLICE_GROUP_ENTRY_0f_SET(fp_slice_map, 1);
-    FP_SLICE_MAPm_VIRTUAL_SLICE_2_PHYSICAL_SLICE_NUMBER_ENTRY_0f_SET(fp_slice_map, 2);
-    FP_SLICE_MAPm_VIRTUAL_SLICE_2_VIRTUAL_SLICE_GROUP_ENTRY_0f_SET(fp_slice_map, 2);
-    FP_SLICE_MAPm_VIRTUAL_SLICE_3_PHYSICAL_SLICE_NUMBER_ENTRY_0f_SET(fp_slice_map, 3);
-    FP_SLICE_MAPm_VIRTUAL_SLICE_3_VIRTUAL_SLICE_GROUP_ENTRY_0f_SET(fp_slice_map, 3);
-    FP_SLICE_MAPm_VIRTUAL_SLICE_4_PHYSICAL_SLICE_NUMBER_ENTRY_0f_SET(fp_slice_map, 4);
-    FP_SLICE_MAPm_VIRTUAL_SLICE_4_VIRTUAL_SLICE_GROUP_ENTRY_0f_SET(fp_slice_map, 4);
-    FP_SLICE_MAPm_VIRTUAL_SLICE_5_PHYSICAL_SLICE_NUMBER_ENTRY_0f_SET(fp_slice_map, 5);
-    FP_SLICE_MAPm_VIRTUAL_SLICE_5_VIRTUAL_SLICE_GROUP_ENTRY_0f_SET(fp_slice_map, 5);
-    FP_SLICE_MAPm_VIRTUAL_SLICE_6_PHYSICAL_SLICE_NUMBER_ENTRY_0f_SET(fp_slice_map, 6);
-    FP_SLICE_MAPm_VIRTUAL_SLICE_6_VIRTUAL_SLICE_GROUP_ENTRY_0f_SET(fp_slice_map, 6);
-    FP_SLICE_MAPm_VIRTUAL_SLICE_7_PHYSICAL_SLICE_NUMBER_ENTRY_0f_SET(fp_slice_map, 7);
-    FP_SLICE_MAPm_VIRTUAL_SLICE_7_VIRTUAL_SLICE_GROUP_ENTRY_0f_SET(fp_slice_map, 7);
-    WRITE_FP_SLICE_MAPm(0, fp_slice_map);
-
-#if CFG_UIP_STACK_ENABLED
-    /* Program for DUT'S MAC  : entry 0 of slice 1 */
-    get_system_mac(mac_addr);
-
-    ones[0] = 0xFFFFFFFF;
-    ones[1] = 0x0000FFFF;
-
-    mac_addr32[0] = (mac_addr[2] << 24) | (mac_addr[3] << 16) | (mac_addr[4] << 8) | (mac_addr[5]);
-    mac_addr32[1] = (mac_addr[0] << 8) | (mac_addr[1]);
-
-
-    FP_TCAMm_CLR(fp_tcam);
-    FP_TCAMm_F2_5_DAf_SET(fp_tcam, mac_addr32);
-    FP_TCAMm_F2_5_DA_MASKf_SET(fp_tcam, ones);
-    FP_TCAMm_VALIDf_SET(fp_tcam, 3);
-    WRITE_FP_TCAMm(0, SYS_MAC_IDX, fp_tcam);
-
-    FP_GLOBAL_MASK_TCAMm_CLR(fp_global_mask_tcam);
-    FP_GLOBAL_MASK_TCAMm_VALIDf_SET(fp_global_mask_tcam, 1);
-    WRITE_FP_GLOBAL_MASK_TCAMm(0, SYS_MAC_IDX, fp_global_mask_tcam);
-
-    FP_POLICY_TABLEm_CLR(fp_policy_table);
-    FP_POLICY_TABLEm_METER_SHARING_MODE_MODIFIERf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_METER_PAIR_MODE_MODIFIERf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_R_COPY_TO_CPUf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_Y_COPY_TO_CPUf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_G_COPY_TO_CPUf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_GREEN_TO_PIDf_SET(fp_policy_table, 1);
-    WRITE_FP_POLICY_TABLEm(0, SYS_MAC_IDX, fp_policy_table);
-
-    for (lport = BCM5607X_LPORT_MIN; lport <= BCM5607X_LPORT_MAX; lport++) {
-        READ_FP_PORT_FIELD_SELm(0, lport , fp_port_field_sel);
-        /* Slice 1: F2 = 5 MACDA;  F3=11 SrcPort*/
-        FP_PORT_FIELD_SELm_SLICE1_F3f_SET(fp_port_field_sel, 0xb);
-        FP_PORT_FIELD_SELm_SLICE1_F2f_SET(fp_port_field_sel, 0x5);
-        FP_PORT_FIELD_SELm_SLICE1_F1f_SET(fp_port_field_sel, 0x0);
-        FP_PORT_FIELD_SELm_SLICE1_DOUBLE_WIDE_KEY_SELECTf_SET(fp_port_field_sel, 0x0);
-        WRITE_FP_PORT_FIELD_SELm(0, lport, fp_port_field_sel);
-    }
-#endif /* CFG_UIP_STACK_ENABLED */
-
-#if CFG_UIP_IPV6_ENABLED
-    /* Program IPV6 all notes multicast MAC  : entry 1 of slice 1
-    * FP_TCAM :
-    * DA is start from bit 106
-    * MASK of DA is start from bit 316
-    */
-    mac_addr[0] = 0x33;
-    mac_addr[1] = 0x33;
-    mac_addr[2] = 0x00;
-    mac_addr[3] = 0x00;
-    mac_addr[4] = 0x00;
-    mac_addr[5] = 0x01;
-    mac_addr32[0] = (mac_addr[2] << 24) | (mac_addr[3] << 16) | (mac_addr[4] << 8) | (mac_addr[5]);
-    mac_addr32[1] = (mac_addr[0] << 8) | (mac_addr[1]);
-
-    FP_TCAMm_CLR(fp_tcam);
-    FP_TCAMm_F2_5_DAf_SET(fp_tcam, mac_addr32);
-    FP_TCAMm_F2_5_DA_MASKf_SET(fp_tcam, ones);
-    FP_TCAMm_VALIDf_SET(fp_tcam, 3);
-    WRITE_FP_TCAMm(0, (SYS_MAC_IDX + 1), fp_tcam);
-
-
-    FP_POLICY_TABLEm_CLR(fp_policy_table);
-    FP_POLICY_TABLEm_METER_SHARING_MODE_MODIFIERf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_METER_PAIR_MODE_MODIFIERf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_R_COPY_TO_CPUf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_Y_COPY_TO_CPUf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_G_COPY_TO_CPUf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_GREEN_TO_PIDf_SET(fp_policy_table, 1);
-    WRITE_FP_POLICY_TABLEm(0, (SYS_MAC_IDX + 1), fp_policy_table);
-
-    FP_GLOBAL_MASK_TCAMm_CLR(fp_global_mask_tcam);
-    FP_GLOBAL_MASK_TCAMm_VALIDf_SET(fp_global_mask_tcam, 1);
-    WRITE_FP_GLOBAL_MASK_TCAMm(0, (SYS_MAC_IDX + 1), fp_global_mask_tcam);
-
-    /* Program for IPV6 multicast MAC  : entry 2 of slice 1
-    * FP_TCAM :
-    * DA is start from bit 106
-    * MASK of DA is start from bit 316
-    */
-    get_system_mac(mac_addr);
-    mac_addr[0] = 0x33;
-    mac_addr[1] = 0x33;
-    mac_addr[2] = 0xff;
-    mac_addr32[0] = (mac_addr[2] << 24) | (mac_addr[3] << 16) | (mac_addr[4] << 8) | (mac_addr[5]);
-    mac_addr32[1] = (mac_addr[0] << 8) | (mac_addr[1]);
-
-    FP_TCAMm_CLR(fp_tcam);
-    FP_TCAMm_F2_5_DAf_SET(fp_tcam, mac_addr32);
-    FP_TCAMm_F2_5_DA_MASKf_SET(fp_tcam, ones);
-    FP_TCAMm_VALIDf_SET(fp_tcam, 3);
-    WRITE_FP_TCAMm(0, (SYS_MAC_IDX + 2), fp_tcam);
-
-    FP_POLICY_TABLEm_CLR(fp_policy_table);
-    FP_POLICY_TABLEm_METER_SHARING_MODE_MODIFIERf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_METER_PAIR_MODE_MODIFIERf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_R_COPY_TO_CPUf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_Y_COPY_TO_CPUf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_G_COPY_TO_CPUf_SET(fp_policy_table, 1);
-    FP_POLICY_TABLEm_GREEN_TO_PIDf_SET(fp_policy_table, 1);
-    WRITE_FP_POLICY_TABLEm(0, (SYS_MAC_IDX + 2), fp_policy_table);
-
-    FP_GLOBAL_MASK_TCAMm_CLR(fp_global_mask_tcam);
-    FP_GLOBAL_MASK_TCAMm_VALIDf_SET(fp_global_mask_tcam, 1);
-    WRITE_FP_GLOBAL_MASK_TCAMm(0, (SYS_MAC_IDX + 2), fp_global_mask_tcam);
-
-#endif /* CFG_UIP_IPV6_ENABLED */
-
-#if (CFG_UIP_STACK_ENABLED)
-    /* Set each redireciton entry per each port
-     * No need to exclude source port nor trunk ports but due to pvlan need to use
-     * cpu and each front port needs each entry.
-     */
-    IFP_REDIRECTION_PROFILEm_CLR(ifp_redirection_profile);
-    IFP_REDIRECTION_PROFILEm_BITMAPf_SET(ifp_redirection_profile, SOC_PBMP(BCM5607X_ALL_PORTS_MASK));
-    for (lport = 0; lport <= BCM5607X_LPORT_MAX; lport ++) {
-        WRITE_IFP_REDIRECTION_PROFILEm(0, lport, ifp_redirection_profile);
-    }
-#endif /* (CFG_UIP_STACK_ENABLED) */
+#endif /* CFG_SWITCH_QOS_INCLUDED */
 }
 #endif /* CFG_RXTX_SUPPORT_ENABLED */
 
@@ -516,6 +266,14 @@ board_init(void)
     bcm5607x_fp_init();
 #endif /* CFG_RXTX_SUPPORT_ENABLED */
 
+#ifdef CFG_COE_INCLUDED
+    rv = fl_coe_config_init();
+    if (rv != SYS_OK) {
+        sal_printf("fl_coe_config_init return %d\n", rv);
+        return rv;
+    }
+#endif
+
 #ifdef CFG_RESET_BUTTON_INCLUDED
 #ifdef CFG_VENDOR_CONFIG_SUPPORT_INCLUDED
     rv = sal_config_uint8_get(SAL_CONFIG_RESET_BUTTON_ENABLE, &reset_button_enable);
@@ -541,14 +299,65 @@ board_init(void)
 #endif /* CFG_RESET_BUTTON_INCLUDED */
 
 #ifdef CFG_WDT_INCLUDED
-    if (wdt_reset_triggered())
+#ifndef __LINUX__
+    if (board_wdt_reset_triggered())
        sal_printf("========== WDT triggered reboot ==========\n");
-    wdt_enable();
+    board_wdt_enable();
+#endif
 #endif /* CFG_WDT_INCLUDED */
 
     return SYS_OK;
 }
 
+#ifdef CFG_LED_MICROCODE_INCLUDED
+int
+board_ledup_init(void)
+{
+    uint8 led_option = 1;
+    uint8 ext_led_program[CMICX_CUSTOMER_LED_FW_SIZE_MAX];
+    const uint8 *led_program = NULL;
+    int byte_count;
+
+    SHR_FUNC_ENTER(0);
+
+    SHR_IF_ERR_EXIT
+        (bcm5607x_led_drv_init(0));
+
+#ifdef CFG_VENDOR_CONFIG_SUPPORT_INCLUDED
+    if (sal_config_uint8_get(SAL_CONFIG_LED_OPTION, &led_option) == SYS_OK) {
+        sal_printf("Vendor Config : Overwrite serial led option with value %d.\n", led_option);
+    }
+#endif
+    if (led_option == 1 || led_option == 2) {
+        SHR_IF_ERR_EXIT
+            (binfs_file_data_get("cmicfw/cmicx_customer_led.bin", &led_program, &byte_count));
+
+        SHR_IF_ERR_EXIT
+            (board_led_control_data_write(0, LED_OPTION, &led_option, 1));
+
+        SHR_IF_ERR_EXIT
+            (board_led_fw_load(0, led_program, byte_count));
+
+        SHR_IF_ERR_EXIT
+            (board_led_fw_start_set(0, 1));
+
+#ifdef CFG_VENDOR_CONFIG_SUPPORT_INCLUDED
+    } else if (led_option == 3) {
+        byte_count = sal_config_bytes_get(SAL_CONFIG_LED_PROGRAM,
+                                          ext_led_program,
+                                          sizeof(ext_led_program));
+        sal_printf("Vendor Config : Load customer LED0 ucdoe for with length %d.\n", byte_count);
+        if (byte_count > 0) {
+            board_led_fw_load(0, ext_led_program, byte_count);
+            board_led_fw_start_set(0, 1);
+        }
+#endif
+    }
+
+exit:
+    SHR_FUNC_EXIT();
+}
+#endif
 
 /* Function:
  *   board_late_init
@@ -562,13 +371,66 @@ board_init(void)
  */
 void
 board_late_init(void) {
+
+#if defined(CFG_BROADSYNC_INCLUDED) && defined(CFG_MCS_INCLUDED)
+    const uint8 *pbuf = NULL;
+    int len;
+#endif
+
+    SHR_FUNC_ENTER(0);
+
 #if !(defined(__BOOTLOADER__) ||  !defined(CFG_SWITCH_STAT_INCLUDED))
     board_port_stat_clear_all();
 #endif
 
-#if CFG_LED_MICROCODE_INCLUDED
-    board_phy_led_init();
+#ifdef CFG_M0SSQ_INCLUDED
+    SHR_IF_ERR_EXIT
+        (bcm5607x_m0ssq_drv_init(0));
 #endif
-}
 
+#ifdef CFG_LED_MICROCODE_INCLUDED
+    SHR_IF_ERR_EXIT
+        (board_ledup_init());
+#endif
+
+#ifdef CFG_MCS_INCLUDED
+    /* MCS driver init. */
+    SHR_IF_ERR_EXIT
+        (bcm5607x_mcs_drv_init(0));
+#endif
+
+#if defined(CFG_BROADSYNC_INCLUDED) && defined(CFG_MCS_INCLUDED)
+
+    /* Load and Run BS firmware. */
+    if (SHR_SUCCESS(binfs_file_data_get
+                    ("broadsync/BCM56070_1_um_bs.bin", &pbuf, &len)))
+    {
+        sal_printf("Load and run Broadsync FW on core-1.\n");
+
+        SHR_IF_ERR_EXIT
+            (board_mcs_uc_fw_load(1, 0, pbuf, len));
+
+        SHR_IF_ERR_EXIT
+            (board_mcs_uc_start(1));
+        task_add(bs_exception_detect, NULL);
+    } else {
+        sal_printf("Can't get file broadsync/BCM56070_1_um_bs.bin.\n");
+    }
+#endif
+
+#ifdef CFG_HARDWARE_LINKSCAN_INCLUDED
+
+    /* Hardware linkscan init. */
+    SHR_IF_ERR_EXIT
+        (bcm5607x_lm_drv_init(0));
+
+    SHR_IF_ERR_EXIT
+        (lm_hw_init(0));
+
+#endif
+
+    SHR_EXIT();
+exit:
+    return;
+}
 

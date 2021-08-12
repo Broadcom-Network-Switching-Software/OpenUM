@@ -3,7 +3,7 @@
 /*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #define __int8_t_defined
@@ -30,23 +30,32 @@
 #include <phymod/phymod_acc.h>
 #include <soc/property.h>
 
-
 extern uint32
 soc_property_port_get(int unit, uint8 port,
                       const char *name, uint32 defl);
 
+#define SOC_PORT_NAME(_unit, _port) _port
+#define bcm_errmsg(x)               _SHR_ERRMSG(x)
+#define SOC_IS_SABER2(_unit)        0
 
-#define SOC_PORT_NAME(unit, port) "??"
-#define bcm_errmsg(x)             _SHR_ERRMSG(x)
-#define SOC_IS_SABER2(unit)       0
+static phy_driver_t*
+pcm_phyctrl_phy_driver_get(int unit, int lport)
+{
+    phy_ctrl_t *int_pc;
+    phy_ctrl_t *ext_pc;
 
+    int_pc = INT_PHY_SW_STATE(unit, lport);
+    ext_pc = EXT_PHY_SW_STATE(unit, lport);
+    if (!ext_pc && !int_pc) {
+        return NULL;
+    }
 
-extern int
-soc_link_mask2_get(int unit, pbmp_t *mask);
-extern int
-soc_link_mask2_set(int unit, pbmp_t mask);
-extern int
-_bcm_esw_link_force(int unit, uint32 flags, int port, int force, int link);
+    if (ext_pc) {
+        return ext_pc->pd;
+    }
+
+    return int_pc->pd;
+}
 
 /*
  * Function:
@@ -59,10 +68,10 @@ _bcm_esw_link_force(int unit, uint32 flags, int port, int force, int link);
  *      ability_mask - (OUT) Mask of _SHR_PORT_ABIL_ values indicating the
  *              ability of the MAC/PHY.
  * Returns:
- *      _SHR_E_NONE
- *      _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  */
-int
+sys_error_t
 pcm_phyctrl_port_ability_local_get(int unit, int lport,
                                    soc_port_ability_t *ability_mask)
 {
@@ -125,7 +134,7 @@ pcm_phyctrl_port_ability_local_get(int unit, int lport,
                  ability_mask->medium, ability_mask->eee,
                  ability_mask->loopback, ability_mask->flags));
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -138,10 +147,10 @@ pcm_phyctrl_port_ability_local_get(int unit, int lport,
  *      lport - Logical port #.
  *      ability_mask - (OUT) Remote advertisement.
  * Returns:
- *      _SHR_E_NONE
- *      _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  */
-int
+sys_error_t
 pcm_phyctrl_port_ability_remote_get(int unit, int lport,
                                     soc_port_ability_t *ability_mask)
 {
@@ -174,7 +183,7 @@ pcm_phyctrl_port_ability_remote_get(int unit, int lport,
                  ability_mask->medium, ability_mask->loopback,
                  ability_mask->flags));
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -187,13 +196,13 @@ pcm_phyctrl_port_ability_remote_get(int unit, int lport,
  *      lport - Logical port #.
  *      ability_mask - Local advertisement.
  * Returns:
- *      _SHR_E_NONE
- *      _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  * Notes:
  *      This call MAY NOT restart autonegotiation (depending on the phy).
  *      To do that, follow this call with bcm_port_autoneg_set(TRUE).
  */
-int
+sys_error_t
 pcm_phyctrl_port_ability_advert_set(int unit, int lport,
                                     soc_port_ability_t *ability_mask)
 {
@@ -227,7 +236,7 @@ pcm_phyctrl_port_ability_advert_set(int unit, int lport,
                  port_ability.medium, port_ability.loopback,
                  port_ability.flags));
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -240,16 +249,15 @@ pcm_phyctrl_port_ability_advert_set(int unit, int lport,
  *      lport - Logical port #.
  *      up - (OUT) Boolean value, FALSE for link down and TRUE for link up
  * Returns:
- *      _SHR_E_NONE
- *      _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  */
-int
+sys_error_t
 pcm_phyctrl_port_link_status_get(int unit, int lport, int *link)
 {
     int rv;
 
     rv = soc_phyctrl_link_get(unit, lport, link);
-
     if (SOC_SUCCESS(rv)) {
         if (PHY_FLAGS_TST(unit, lport, PHY_FLAGS_MEDIUM_CHANGE)) {
             soc_port_medium_t  medium;
@@ -263,7 +271,7 @@ pcm_phyctrl_port_link_status_get(int unit, int lport, int *link)
                          "bcm_port_link_status_get: u=%d p=%d up=%d rv=%d\n"),
               unit, lport, *link, rv));
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -276,12 +284,12 @@ pcm_phyctrl_port_link_status_get(int unit, int lport, int *link)
  *      lport - Logical port #.
  *      speed - (OUT) Value in megabits/sec (10, 100, etc)
  * Returns:
- *      _SHR_E_NONE
- *      _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  * Notes:
  *      If port is in MAC loopback, the speed of the loopback is returned.
  */
-int
+sys_error_t
 pcm_phyctrl_port_speed_get(int unit, int lport, int *speed)
 {
     int rv = _SHR_E_NONE;
@@ -308,7 +316,7 @@ pcm_phyctrl_port_speed_get(int unit, int lport, int *speed)
                          "bcm_port_speed_get: u=%d p=%d speed=%d rv=%d\n"),
               unit, lport, SOC_SUCCESS(rv) ? *speed : 0, rv));
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -321,10 +329,10 @@ pcm_phyctrl_port_speed_get(int unit, int lport, int *speed)
  *      lport - Logical port #.
  *      speed - (OUT) Value in megabits/sec (10, 100, etc)
  * Returns:
- *      _SHR_E_NONE
- *      _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  */
-int
+sys_error_t
 pcm_phyctrl_port_speed_max(int unit, int lport, int *speed)
 {
     int rv;
@@ -348,7 +356,7 @@ pcm_phyctrl_port_speed_max(int unit, int lport, int *speed)
                          "bcm_port_speed_max: u=%d p=%d speed=%d rv=%d\n"),
               unit, lport, *speed, rv));
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 
@@ -445,7 +453,7 @@ _pcm_phyctrl_port_speed_set(int unit, int lport, int speed)
                      _SHR_ERRMSG(rv)));
     }
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -458,27 +466,16 @@ _pcm_phyctrl_port_speed_set(int unit, int lport, int speed)
  *      lport - Logical port #.
  *      speed - Value in megabits/sec (10, 100, etc)
  * Returns:
- *      _SHR_E_NONE
- *      _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  * Notes:
  *      Turns off autonegotiation.  Caller must make sure other forced
  *      parameters (such as duplex) are set.
  */
-int
+sys_error_t
 pcm_phyctrl_port_speed_set(int unit, int lport, int speed)
 {
     int rv;
-
-    
-    #if 0
-    if (soc_property_get(unit, spn_SAME_SPEED_INTF_DO_NOT_OVERWRITE,0)) {
-        BCM_IF_ERROR_RETURN(bcm_esw_port_speed_get(unit, port, &curr_speed));
-        BCM_IF_ERROR_RETURN(bcm_esw_port_interface_get(unit, port, &curr_intf));
-        if((speed == curr_speed) && (PORT(unit, port).intf == curr_intf)) {
-            return BCM_E_NONE;
-        }
-    }
-    #endif
 
     if (IS_XL_PORT(lport) && (speed == 12700)) {
         speed = 13000;
@@ -486,21 +483,15 @@ pcm_phyctrl_port_speed_set(int unit, int lport, int speed)
 
     rv = _pcm_phyctrl_port_speed_set(unit, lport, speed);
 
-    
-    #if 0
-    if (SOC_SUCCESS(rv) && !SAL_BOOT_SIMULATION) {
-        SOC_PBMP_CLEAR(pbm);
-        SOC_PBMP_PORT_ADD(pbm, port);
-        (void)bcm_esw_link_change(unit, pbm);
-    }
-    #endif
+    /* Call linkscan task to update the link status */
+    pcm_port_link_scan(NULL);
 
     LOG_INFO(BSL_LS_BCM_PORT,
              (BSL_META_U(unit,
                          "bcm_port_speed_set: u=%d p=%d speed=%d rv=%d\n"),
               unit, lport, speed, rv));
 
-   return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 
@@ -512,20 +503,20 @@ pcm_phyctrl_port_speed_set(int unit, int lport, int speed)
  * Parameters:
  *      unit - Unit #.
  *      lport - Logical port #.
- *      intf - (OUT) BCM_PORT_IF_*
+ *      intf - (OUT) PCM_PORT_IF_*
  * Returns:
- *      _SHR_E_NONE
- *      _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  * Notes:
  */
-int
-pcm_phyctrl_port_interface_get(int unit, int port, soc_port_if_t *intf)
+sys_error_t
+pcm_phyctrl_port_interface_get(int unit, int port, int *intf)
 {
     int rv;
 
-    rv = soc_phyctrl_interface_get(unit, port, intf);
+    rv = soc_phyctrl_interface_get(unit, port, (soc_port_if_t *)intf);
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -536,18 +527,21 @@ pcm_phyctrl_port_interface_get(int unit, int port, soc_port_if_t *intf)
  * Parameters:
  *      unit - Unit #.
  *      lport - Logical port #.
- *      if - BCM_PORT_IF_*
+ *      if - PCM_PORT_IF_*
  * Returns:
- *      _SHR_E_NONE
- *      _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  * Notes:
  */
-int
-pcm_phyctrl_port_interface_set(int unit, int lport, soc_port_if_t intf)
+sys_error_t
+pcm_phyctrl_port_interface_set(int unit, int lport, int intf)
 {
     int rv;
 
-    rv = soc_phyctrl_interface_set(unit, lport, intf);
+    rv = soc_phyctrl_interface_set(unit, lport, (soc_port_if_t)intf);
+
+    /* Call linkscan task to update the link status */
+    pcm_port_link_scan(NULL);
 
     if (SOC_FAILURE(rv)) {
        LOG_VERBOSE(BSL_LS_BCM_PORT,
@@ -556,16 +550,7 @@ pcm_phyctrl_port_interface_set(int unit, int lport, soc_port_if_t intf)
                      _SHR_ERRMSG(rv)));
     }
 
-    
-    #if 0
-    if (BCM_SUCCESS(rv)) {
-        SOC_PBMP_CLEAR(pbm);
-        SOC_PBMP_PORT_ADD(pbm, port);
-        (void)bcm_esw_link_change(unit, pbm);
-        PORT(unit, port).intf = intf;
-    }
-    #endif
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -578,10 +563,10 @@ pcm_phyctrl_port_interface_set(int unit, int lport, soc_port_if_t intf)
  *      lport - Logical port #.
  *      autoneg - (OUT) Boolean value
  * Returns:
- *      _SHR_E_NONE
- *      _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  */
-int
+sys_error_t
 pcm_phyctrl_port_autoneg_get(int unit, int lport, int *autoneg)
 {
     int done, rv;
@@ -594,7 +579,7 @@ pcm_phyctrl_port_autoneg_get(int unit, int lport, int *autoneg)
                          "rv=%d\n"),
               unit, lport, *autoneg, done, rv));
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -607,11 +592,11 @@ pcm_phyctrl_port_autoneg_get(int unit, int lport, int *autoneg)
  *      lport - Logical port #.
  *      autoneg - Boolean value
  * Returns:
- *      _SHR_E_NONE
- *      _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  */
 #define SOC_PA_ALL_BELOW_SPEED(s) ((SOC_PA_SPEED(s)-1) | SOC_PA_SPEED(s))
-int
+sys_error_t
 pcm_phyctrl_port_autoneg_set(int unit, int lport, int autoneg)
 {
     int rv;
@@ -628,57 +613,16 @@ pcm_phyctrl_port_autoneg_set(int unit, int lport, int autoneg)
     } else {
         rv = soc_phyctrl_auto_negotiate_set(unit, lport, autoneg);
     }
+
+    /* Call linkscan task to update the link status */
+    pcm_port_link_scan(NULL);
+
     LOG_INFO(BSL_LS_BCM_PORT,
              (BSL_META_U(unit,
                          "bcm_port_autoneg_set: u=%d p=%d an=%d rv=%d\n"),
               unit, lport, autoneg, rv));
 
-    return rv;
-}
-
-/*
- * Function:
- *      pcm_phyctrl_port_pause_set
- * Purpose:
- *      Set the pause state for a given port
- * Parameters:
- *      unit - Unit #.
- *      lport - Logical port #.
- *      pause_tx - Boolean value, or -1 (don't change)
- *      pause_rx - Boolean value, or -1 (don't change)
- * Returns:
- *      _SHR_E_NONE
- *      _SHR_E_XXX
- * Notes:
- *      Symmetric pause requires the two "pause" values to be the same.
- */
-int
-pcm_phyctrl_port_pause_set(int unit, int lport, int pause_tx, int pause_rx)
-{
-    return MAC_PAUSE_SET(PORT(unit, lport).p_mac, unit, lport,
-                         pause_tx, pause_rx);
-}
-
-/*
- * Function:
- *      pcm_phyctrl_port_pause_get
- * Purpose:
- *      Get the source address for transmitted PAUSE frames.
- * Parameters:
- *      unit - Unit #.
- *      lport - Logical port #.
- *      pause_tx - (OUT) Boolean value
- *      pause_rx - (OUT) Boolean value
- * Returns:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
- */
-
-int
-pcm_phyctrl_port_pause_get(int unit, int lport, int *pause_tx, int *pause_rx)
-{
-    return MAC_PAUSE_GET(PORT(unit, lport).p_mac, unit, lport,
-                         pause_tx, pause_rx);
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -691,10 +635,10 @@ pcm_phyctrl_port_pause_get(int unit, int lport, int *pause_tx, int *pause_rx)
  *      lport - Logical port #.
  *      duplex - (OUT) Duplex setting, one of SOC_PORT_DUPLEX_xxx
  * Returns:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  */
-int
+sys_error_t
 pcm_phyctrl_port_duplex_get(int unit, int lport, int *duplex)
 {
     int rv;
@@ -703,9 +647,9 @@ pcm_phyctrl_port_duplex_get(int unit, int lport, int *duplex)
     rv = soc_phyctrl_duplex_get(unit, lport, &phy_duplex);
 
     if (SOC_SUCCESS(rv)) {
-        *duplex = phy_duplex ? SOC_PORT_DUPLEX_FULL : SOC_PORT_DUPLEX_HALF;
+        *duplex = phy_duplex ? PCM_PORT_DUPLEX_FULL : PCM_PORT_DUPLEX_HALF;
     } else {
-        *duplex = SOC_PORT_DUPLEX_FULL;
+        *duplex = PCM_PORT_DUPLEX_FULL;
     }
 
     LOG_INFO(BSL_LS_BCM_PORT,
@@ -713,7 +657,7 @@ pcm_phyctrl_port_duplex_get(int unit, int lport, int *duplex)
                          "bcm_port_duplex_get: u=%d p=%d dup=%d rv=%d\n"),
               unit, lport, *duplex, rv));
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -726,38 +670,38 @@ pcm_phyctrl_port_duplex_get(int unit, int lport, int *duplex)
  *      lport - Logical port #.
  *      duplex - Duplex setting, one of SOC_PORT_DUPLEX_xxx
  * Returns:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  * Notes:
  *      Turns off autonegotiation.  Caller must make sure other forced
  *      parameters (such as speed) are set.
  */
-int
-pcm_phyctrl_port_duplex_set(int unit, int lport, int duplex)
+sys_error_t
+pcm_phyctrl_port_duplex_set(int unit, int lport, int dp)
 {
     int rv;
     soc_port_ability_t ability_mask;
     int speed = 0, full_duplex_speed, half_duplex_speed;
+    int duplex = (dp == PCM_PORT_DUPLEX_FULL) ? SOC_PORT_DUPLEX_FULL : SOC_PORT_DUPLEX_HALF;
     uint32 pa_speed = 0;
     int an = 0 ;
     int an_done=0;
 
     sal_memset(&ability_mask, 0, sizeof(soc_port_ability_t));
 
-
     rv = pcm_phyctrl_port_ability_local_get(unit, lport, &ability_mask);
     if (rv < 0) {
         LOG_VERBOSE(BSL_LS_BCM_PORT,
                     (BSL_META("Error: Could not get port %d ability: %s\n"),
                      lport, _SHR_ERRMSG(rv)));
-        return rv;
+        return (rv) ? SYS_ERR : SYS_OK;
     } else {
         rv = pcm_phyctrl_port_speed_get(unit, lport, &speed);
         if (rv < 0) {
             LOG_VERBOSE(BSL_LS_BCM_PORT,
                         (BSL_META("Error: Could not get port %d speed: %s\n"),
                          lport, _SHR_ERRMSG(rv)));
-            return rv;
+            return (rv) ? SYS_ERR : SYS_OK;
         } else {
             pa_speed = SOC_PA_SPEED(speed);
             full_duplex_speed = ability_mask.speed_full_duplex & pa_speed;
@@ -821,21 +765,12 @@ pcm_phyctrl_port_duplex_set(int unit, int lport, int duplex)
         }
     }
 
-    
-    #if 0
-    if (BCM_SUCCESS(rv) && !SAL_BOOT_SIMULATION) {
-        SOC_PBMP_CLEAR(pbm);
-        SOC_PBMP_PORT_ADD(pbm, port);
-        (void)bcm_esw_link_change(unit, pbm);
-
-    }
-    #endif
     LOG_INFO(BSL_LS_BCM_PORT,
              (BSL_META_U(unit,
                          "bcm_port_duplex_set: u=%d p=%d dup=%d rv=%d\n"),
               unit, lport, duplex, rv));
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -848,26 +783,22 @@ pcm_phyctrl_port_duplex_set(int unit, int lport, int duplex)
  *      lport - Logical port #.
  *      enable - TRUE, port is enabled, FALSE port is disabled.
  * Returns:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  * Notes:
  *      If linkscan is running, it also controls the MAC enable state.
  */
-int
+sys_error_t
 pcm_phyctrl_port_enable_set(int unit, int lport, int enable)
 {
     int rv = SOC_E_NONE;
-    int loopback = PORT_LOOPBACK_NONE;
-    pbmp_t mask;
-#if 0
+    int loopback = PCM_PORT_LOOPBACK_NONE;
     int link;
-    bcm_esw_port_loopback_get(unit, port, &loopback);
-#endif
+
+    pcm_phyctrl_port_loopback_get(unit, lport, &loopback);
 
     if (enable) {
         rv = soc_phyctrl_enable_set(unit, lport, TRUE);
-
-#if 0
         if (SOC_SUCCESS(rv)) {
             /* Get link status after PHY state has been set */
             rv = pcm_phyctrl_port_link_status_get(unit, lport, &link);
@@ -876,54 +807,28 @@ pcm_phyctrl_port_enable_set(int unit, int lport, int enable)
                     link = FALSE;
                     rv = SOC_E_NONE;
                 } else {
-                    return rv;
+                    return (rv) ? SYS_ERR : SYS_OK;
                 }
             }
-
-            if (link || (loopback != PORT_LOOPBACK_NONE)) {
+            if (link || (loopback != PCM_PORT_LOOPBACK_NONE)) {
                 rv = MAC_ENABLE_SET(PORT(unit, lport).p_mac, unit, lport, TRUE);
-                if (loopback == PORT_LOOPBACK_MAC) {
-                    /* Add port to EPC_LINK */
-                    soc_link_mask2_get(unit, &mask);
-                    PBMP_PORT_ADD(mask, lport);
-                    rv = soc_link_mask2_set(unit, mask);
-                    if (SOC_FAILURE(rv)) {
-                        return (rv);
-                    }
-                }
+
+                MAC_CONTROL_SET(PORT(unit, lport).p_mac, unit, lport,
+                                    SOC_MAC_CONTROL_RX_SET, TRUE);
             }
         }
-#endif
     } else {
-        /* Remove from EPC_LINK to prevent packet queued to this port from TX */
-        soc_link_mask2_get(unit, &mask);
-        PBMP_PORT_REMOVE(mask, lport);
-        rv = soc_link_mask2_set(unit, mask);
-        if (SOC_FAILURE(rv)) {
-            return (rv);
+        if (1 /* ((loopback != PCM_PORT_LOOPBACK_MAC)) */) {
+            /* Disable MAC RX to prevent traffic going into this port */
+            MAC_CONTROL_SET(PORT(unit, lport).p_mac, unit, lport,
+                                    SOC_MAC_CONTROL_RX_SET, FALSE);
+            sal_usleep(100); /* Wait for 1 jumbo packet transmission time */
         }
-        LOG_VERBOSE(BSL_LS_BCM_PORT,
-                    (BSL_META_U(unit,
-                                "Disable and isolate port %d..\n"),
-                     lport));
-        /*
-         * SDK-71770/TH-4402 WAR for TH. Mismatch in expectation between
-         * SERDES and MAC on what should be presented on the data bus when
-         * port is administratively disabled. SW WAR is to disable MAC.RX
-         * before disabling PHY.
-         */
-
-        /* Disable MAC RX to prevent traffic going into this port */
-        MAC_CONTROL_SET(PORT(unit, lport).p_mac, unit, lport,
-                        SOC_MAC_CONTROL_RX_SET, FALSE);
-
-        sal_usleep(100); /* Wait for 1 jumbo packet transmission time */
 
         MAC_CONTROL_SET(PORT(unit, lport).p_mac, unit, lport,
                         SOC_MAC_CONTROL_DISABLE_PHY, TRUE);
 
         rv = soc_phyctrl_enable_set(unit, lport, FALSE);
-
 
         MAC_CONTROL_SET(PORT(unit, lport).p_mac, unit, lport,
                         SOC_MAC_CONTROL_DISABLE_PHY, FALSE);
@@ -932,27 +837,24 @@ pcm_phyctrl_port_enable_set(int unit, int lport, int enable)
          *  When the port is configured to MAC loopback,
          *  can't disabling MAC.
          */
-        if (loopback != PORT_LOOPBACK_MAC) {
-            if (SOC_SUCCESS(rv)) {
-                rv = MAC_ENABLE_SET(PORT(unit, lport).p_mac, unit, lport,
-                                    FALSE);
-            }
+        if (SOC_SUCCESS(rv) /* && (loopback != PCM_PORT_LOOPBACK_MAC) */) {
+            rv = MAC_ENABLE_SET(PORT(unit, lport).p_mac, unit, lport, FALSE);
         }
     }
 
-    if (loopback != PORT_LOOPBACK_NONE) {
-        if (loopback == PORT_LOOPBACK_MAC) {
-            rv = _bcm_esw_link_force(unit, 0 /*flags*/, lport, TRUE, TRUE);
-        } else {
-            rv = _bcm_esw_link_force(unit, 0 /*flags*/, lport, TRUE, enable);
-        }
+    if (loopback != PCM_PORT_LOOPBACK_NONE) {
+        SOC_PORT_LINK_STATUS(lport) = enable;
     }
+
+    /* Call linkscan task to update the link status */
+    pcm_port_link_scan(NULL);
+
     LOG_INFO(BSL_LS_BCM_PORT,
              (BSL_META_U(unit,
                          "bcm_port_enable_set: u=%d p=%d enable=%d rv=%d\n"),
               unit, lport, enable, rv));
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 
@@ -966,14 +868,14 @@ pcm_phyctrl_port_enable_set(int unit, int lport, int enable)
  *      lport - Logical port #.
  *      enable - (OUT) TRUE, port is enabled, FALSE port is disabled.
  * Returns:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  * Notes:
  *      The PHY enable holds the port enable state set by the user.
  *      The MAC enable transitions up and down automatically via linkscan
  *      even if user port enable is always up.
  */
-int
+sys_error_t
 pcm_phyctrl_port_enable_get(int unit, int lport, int *enable)
 {
     int rv;
@@ -985,7 +887,7 @@ pcm_phyctrl_port_enable_get(int unit, int lport, int *enable)
                          "bcm_port_enable_get: u=%d p=%d rv=%d enable=%d\n"),
               unit, lport, rv, *enable));
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -997,63 +899,32 @@ pcm_phyctrl_port_enable_get(int unit, int lport, int *enable)
  *      unit - Unit #.
  *      lport - Logical port #.
  *      loopback - one of:
- *              PORT_LOOPBACK_NONE
- *              PORT_LOOPBACK_MAC
- *              PORT_LOOPBACK_PHY
+ *              PCM_PORT_LOOPBACK_NONE
+ *              PCM_PORT_LOOPBACK_MAC
+ *              PCM_PORT_LOOPBACK_PHY
  * Returns:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  */
-int
+sys_error_t
 pcm_phyctrl_port_loopback_set(int unit, int lport, int loopback)
 {
-    int rv, link = TRUE;
+    int rv = SOC_E_NONE;
+    int enable = TRUE;
+    int link = FALSE;
 
-    soc_phyctrl_enable_get(unit, lport, &link);
+    soc_phyctrl_enable_get(unit, lport, &enable);
+    pcm_phyctrl_port_link_status_get(unit, lport, &link);
 
-#if 0
-    if (TRUE == link) {
-        if (SOC_PBMP_MEMBER(sop->lc_pbm_override_ports, port)) {
-            if(!SOC_PBMP_MEMBER(sop->lc_pbm_override_link, port)) {
-                link = FALSE;
-            }
-        }
-    }
-#endif
-    rv = SOC_E_NONE;
-    /*
-     * Always force link before changing hardware to avoid
-     * race with the linkscan thread.
-     * On KT2, the operated port should be forced link down
-     * before mode change to prevent traffic being forwarded
-     * to the port.
-     */
-#if 0
-    if (!(loopback == BCM_PORT_LOOPBACK_NONE) || SOC_IS_KATANA2(unit)) {
-        rv = _bcm_esw_link_force(unit, 0 /*flags*/, port, TRUE, FALSE);
-
-        if(rv == BCM_E_NONE) {
-            /* Force the update function to be called so the state is
-               updated */
-            if (_soc_linkscan_phy_flags_test(unit, port, PHY_FLAGS_EXTERNAL_PHY)) {
-                rv = bcm_esw_port_update(unit, port, TRUE);
-            }
-        }
-    }
-#endif
-
-
+    rv = MAC_LOOPBACK_SET(PORT(unit, lport).p_mac, unit, lport,
+                              (loopback == PCM_PORT_LOOPBACK_MAC));
     if (SOC_SUCCESS(rv)) {
-        rv = MAC_LOOPBACK_SET(PORT(unit, lport).p_mac, unit, lport,
-                              (loopback == PORT_LOOPBACK_MAC));
-    }
-    if (SOC_SUCCESS(rv)) {
-        if (loopback == PORT_LOOPBACK_PHY_REMOTE) {
+        if (loopback == PCM_PORT_LOOPBACK_PHY_REMOTE) {
                 rv = soc_phyctrl_control_set(unit, lport,
                                              SOC_PHY_CONTROL_LOOPBACK_REMOTE,
                                              1);
         } else {
-            if (loopback == PORT_LOOPBACK_NONE) {
+            if (loopback == PCM_PORT_LOOPBACK_NONE) {
                 rv = soc_phyctrl_control_set(unit, lport,
                                              SOC_PHY_CONTROL_LOOPBACK_REMOTE,
                                              0);
@@ -1061,56 +932,40 @@ pcm_phyctrl_port_loopback_set(int unit, int lport, int loopback)
 
             if (rv == SOC_E_NONE || rv == SOC_E_UNAVAIL) {
                 rv = soc_phyctrl_loopback_set(unit, lport,
-                                              (loopback == PORT_LOOPBACK_PHY),
+                                              (loopback == PCM_PORT_LOOPBACK_PHY),
                                               TRUE);
             }
         }
     }
 
-    if ((loopback == PORT_LOOPBACK_NONE) || !SOC_SUCCESS(rv)) {
-        _bcm_esw_link_force(unit, 0 /*flags*/, lport, FALSE, 0);
-         if ((FALSE == link) && (loopback == PORT_LOOPBACK_NONE)) {
+   if ((loopback == PCM_PORT_LOOPBACK_NONE) || !SOC_SUCCESS(rv)) {
+        SOC_PORT_LINK_STATUS(lport) = link;
+        if ((FALSE == link) && (loopback == PCM_PORT_LOOPBACK_NONE)) {
              /* Disable MAC RX to prevent traffic going into this port */
              MAC_CONTROL_SET(PORT(unit, lport).p_mac, unit, lport,
                              SOC_MAC_CONTROL_RX_SET, FALSE);
              sal_usleep(100); /* Wait for 1 jumbo packet transmission time */
 
              rv = MAC_ENABLE_SET(PORT(unit, lport).p_mac, unit, lport, FALSE);
-         }
+        }
     } else {
-        /*
-         * Enable only MAC instead of calling bcm_port_enable_set so
-         * that this API doesn't silently enable the port if the
-         * port is disabled by application.
-         */
-        rv = MAC_ENABLE_SET(PORT(unit, lport).p_mac, unit, lport, TRUE);
-
+        if (enable) {
+            rv = MAC_ENABLE_SET(PORT(unit, lport).p_mac, unit, lport, enable);
+        }
         if (SOC_SUCCESS(rv)) {
-            /*
-             * Make sure that the link status is updated only after the
-             * MAC is enabled so that link_mask2 is set before the
-             * calling thread synchronizes with linkscan thread in
-             * _bcm_link_force call.
-             * If the link is forced before MAC is enabled, there could
-             * be a race condition in _soc_link_update where linkscan
-             * may use an old view of link_mask2 and override the
-             * EPC_LINK_BMAP after the mac_enable_set updates
-             * link_mask2 and EPC_LINK_BMAP.
-             */
-            if (loopback == PORT_LOOPBACK_MAC) {
-                rv = _bcm_esw_link_force(unit, 0 /*flags*/, lport, TRUE, TRUE);
-            } else {
-                rv = _bcm_esw_link_force(unit, 0 /*flags*/, lport, TRUE, link);
-            }
+            SOC_PORT_LINK_STATUS(lport) = enable;
         }
     }
+
+    /* Call linkscan task to update the link status */
+    pcm_port_link_scan(NULL);
 
     LOG_INFO(BSL_LS_BCM_PORT,
              (BSL_META_U(unit,
                          "bcm_port_loopback_set: u=%d p=%d lb=%d rv=%d\n"),
               unit, lport, loopback, rv));
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -1122,14 +977,14 @@ pcm_phyctrl_port_loopback_set(int unit, int lport, int loopback)
  *      unit - Unit #.
  *      lport - Logical port #.
  *      loopback - (OUT) one of:
- *              PORT_LOOPBACK_NONE
- *              PORT_LOOPBACK_MAC
- *              PORT_LOOPBACK_PHY
+ *              PCM_PORT_LOOPBACK_NONE
+ *              PCM_PORT_LOOPBACK_MAC
+ *              PCM_PORT_LOOPBACK_PHY
  * Returns:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  */
-int
+sys_error_t
 pcm_phyctrl_port_loopback_get(int unit, int lport, int *loopback)
 {
     int         rv = SOC_E_NONE;
@@ -1155,16 +1010,16 @@ pcm_phyctrl_port_loopback_get(int unit, int lport, int *loopback)
 
     if (rv >= 0) {
         if (mac_lb) {
-            *loopback = PORT_LOOPBACK_MAC;
+            *loopback = PCM_PORT_LOOPBACK_MAC;
         } else if (phy_lb) {
-            *loopback = PORT_LOOPBACK_PHY;
+            *loopback = PCM_PORT_LOOPBACK_PHY;
         } else if (phy_rlb) {
-            *loopback = PORT_LOOPBACK_PHY_REMOTE;
+            *loopback = PCM_PORT_LOOPBACK_PHY_REMOTE;
         } else {
-            *loopback = PORT_LOOPBACK_NONE;
+            *loopback = PCM_PORT_LOOPBACK_NONE;
         }
     } else {
-        *loopback = PORT_LOOPBACK_NONE;
+        *loopback = PCM_PORT_LOOPBACK_NONE;
     }
 
     LOG_INFO(BSL_LS_BCM_PORT,
@@ -1172,7 +1027,7 @@ pcm_phyctrl_port_loopback_get(int unit, int lport, int *loopback)
                          "bcm_port_loopback_get: u=%d p=%d lb=%d rv=%d\n"),
               unit, lport, *loopback, rv));
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -1186,15 +1041,15 @@ pcm_phyctrl_port_loopback_get(int unit, int lport, int *loopback)
  *      type - Enum  value of the feature
  *      value - (OUT) Current value of the port feature
  * Return Value:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  */
-int
+sys_error_t
 pcm_phyctrl_port_control_get(int unit, int port, int type, int *value)
 {
     int rv = SOC_E_UNAVAIL;
     /* TBI */
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -1208,15 +1063,15 @@ pcm_phyctrl_port_control_get(int unit, int port, int type, int *value)
  *      type - Enum value of the feature
  *      value - value to be set
  * Return Value:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  */
-int
+sys_error_t
 pcm_phyctrl_port_control_set(int unit, int port, int type, int value)
 {
     int rv = SOC_E_UNAVAIL;
     /* TBI */
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -1229,11 +1084,11 @@ pcm_phyctrl_port_control_set(int unit, int port, int type, int value)
  *      lport - Logical port #.
  *      link -  True if link is active, false if link is inactive.
  * Returns:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  */
 
-int
+sys_error_t
 pcm_phyctrl_port_update(int unit, int lport, int link)
 {
     int rv;
@@ -1250,7 +1105,7 @@ pcm_phyctrl_port_update(int unit, int lport, int link)
                      (BSL_META_U(unit,
                                  "u=%d p=%d MAC_ENABLE_SET FALSE rv=%d\n"),
                       unit, lport, rv));
-            return rv;
+            return (rv) ? SYS_ERR : SYS_OK;
         }
 
         /* PHY link down event */
@@ -1260,7 +1115,7 @@ pcm_phyctrl_port_update(int unit, int lport, int link)
                      (BSL_META_U(unit,
                                  "u=%d p=%d soc_phyctrl_linkdn_evt rv=%d\n"),
                       unit, lport, rv));
-            return rv;
+            return (rv) ? SYS_ERR : SYS_OK;
         }
 
         return SOC_E_NONE;
@@ -1277,35 +1132,21 @@ pcm_phyctrl_port_update(int unit, int lport, int link)
                  (BSL_META_U(unit,
                              "u=%d p=%d soc_phyctrl_linkup_evt rv=%d\n"),
                   unit, lport, rv));
-        return rv;
+        return (rv) ? SYS_ERR : SYS_OK;
     }
 
-    
-    #if 0
-        int up = 0;
-
-        SOC_IF_ERROR_RETURN
-            (soc_phyctrl_link_get(unit, port, &up));
-
-        /* Wait internal PHY link when external PHY is link up */
-        if (up) {
-            (void)soc_phyctrl_notify(unit, port, phyEventLinkWait, 0);
-        }
-    #endif
-
     /*
-         * Set MAC speed first, since for GTH ports, this will switch
-         * between the 1000Mb/s or 10/100Mb/s MACs.
-         */
-
-    if (IS_GX_PORT(lport)) {
+     * Set MAC speed first, since for GTH ports, this will switch
+     * between the 1000Mb/s or 10/100Mb/s MACs.
+     */
+    if (!IS_HG_PORT(lport) || IS_GX_PORT(lport)) {
         rv = soc_phyctrl_speed_get(unit, lport, &speed);
         if (SOC_FAILURE(rv) && (SOC_E_UNAVAIL != rv)) {
             LOG_WARN(BSL_LS_BCM_PORT,
                      (BSL_META_U(unit,
                                  "u=%d p=%d phyctrl_speed_get rv=%d\n"),
                       unit, lport, rv));
-            return rv;
+            return (rv) ? SYS_ERR : SYS_OK;
         }
         LOG_INFO(BSL_LS_BCM_PORT,
                  (BSL_META_U(unit,
@@ -1326,7 +1167,7 @@ pcm_phyctrl_port_update(int unit, int lport, int link)
                          (BSL_META_U(unit,
                                      "u=%d p=%d MAC_SPEED_GET rv=%d\n"),
                           unit, lport, rv));
-                return rv;
+                return (rv) ? SYS_ERR : SYS_OK;
             }
 
             rv = MAC_ENABLE_GET(PORT(unit, lport).p_mac, unit, lport, &enable);
@@ -1335,7 +1176,7 @@ pcm_phyctrl_port_update(int unit, int lport, int link)
                             (BSL_META_U(unit,
                                       "u=%d p=%d MAC_ENABLE_GET rv=%d\n"),
                              unit, lport, rv));
-                return rv;
+                return (rv) ? SYS_ERR : SYS_OK;
             }
 
             /*
@@ -1351,7 +1192,7 @@ pcm_phyctrl_port_update(int unit, int lport, int link)
                      (BSL_META_U(unit,
                                  "u=%d p=%d MAC_SPEED_SET speed=%d rv=%d\n"),
                       unit, lport, speed, rv));
-            return rv;
+            return (rv) ? SYS_ERR : SYS_OK;
         }
 
         rv = soc_phyctrl_duplex_get(unit, lport, &duplex);
@@ -1360,7 +1201,7 @@ pcm_phyctrl_port_update(int unit, int lport, int link)
                      (BSL_META_U(unit,
                                  "u=%d p=%d phyctrl_duplex_get rv=%d\n"),
                                  unit, lport, rv));
-            return rv;
+            return (rv) ? SYS_ERR : SYS_OK;
         }
 
         rv = MAC_DUPLEX_SET(PORT(unit, lport).p_mac, unit, lport, duplex);
@@ -1370,7 +1211,7 @@ pcm_phyctrl_port_update(int unit, int lport, int link)
                                  "u=%d p=%d MAC_DUPLEX_SET %s sp=%d rv=%d\n"),
                                  unit, lport,
                       duplex ? "FULL" : "HALF", speed, rv));
-            return rv;
+            return (rv) ? SYS_ERR : SYS_OK;
         }
     } else {
         duplex = 1;
@@ -1382,7 +1223,7 @@ pcm_phyctrl_port_update(int unit, int lport, int link)
                  (BSL_META_U(unit,
                              "u=%d p=%d phyctrl_interface_get rv=%d\n"),
                   unit, lport, rv));
-        return rv;
+        return (rv) ? SYS_ERR : SYS_OK;
     }
 
     rv = MAC_INTERFACE_SET(PORT(unit, lport).p_mac, unit, lport, pif);
@@ -1391,7 +1232,7 @@ pcm_phyctrl_port_update(int unit, int lport, int link)
                  (BSL_META_U(unit,
                              "u=%d p=%d MAC_INTERFACE_GET rv=%d\n"),
                   unit, lport,rv));
-        return rv;
+        return (rv) ? SYS_ERR : SYS_OK;
     }
 
     SOC_IF_ERROR_RETURN
@@ -1417,7 +1258,7 @@ pcm_phyctrl_port_update(int unit, int lport, int link)
                                  "u=%d p=%d soc_phyctrl_adv_local_get "
                                  "rv=%d\n"),
                       unit, lport, rv));
-            return rv;
+            return (rv) ? SYS_ERR : SYS_OK;
         }
         rv = soc_phyctrl_ability_remote_get(unit, lport, &remote_advert);
         if (SOC_FAILURE(rv)) {
@@ -1426,7 +1267,7 @@ pcm_phyctrl_port_update(int unit, int lport, int link)
                                   "u=%d p=%d soc_phyctrl_adv_remote_get "
                                   "rv=%d\n"),
                       unit, lport, rv));
-            return rv;
+            return (rv) ? SYS_ERR : SYS_OK;
         }
 
         /*
@@ -1457,7 +1298,7 @@ pcm_phyctrl_port_update(int unit, int lport, int link)
                      (BSL_META_U(unit,
                                  "u=%d p=%d MAC_PAUSE_SET rv=%d\n"),
                       unit, lport, rv));
-            return rv;
+            return (rv) ? SYS_ERR : SYS_OK;
         }
     }
 
@@ -1468,7 +1309,7 @@ pcm_phyctrl_port_update(int unit, int lport, int link)
                  (BSL_META_U(unit,
                              "u=%d p=%d MAC_ENABLE_SET TRUE rv=%d\n"),
                   unit, lport, rv));
-        return rv;
+        return (rv) ? SYS_ERR : SYS_OK;
     }
 
     return SOC_E_NONE;
@@ -1484,13 +1325,13 @@ pcm_phyctrl_port_update(int unit, int lport, int link)
  *      lport - Logical port #.
  *      status - (OUT) cable diag status structure
  * Return Value:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  * Notes:
  *      Cable diagnostics are only supported by some phy types
  *      (currently 5248 10/100 phy and 546x 10/100/1000 phys)
  */
-int
+sys_error_t
 pcm_phyctrl_phy_cable_diag(int unit, int lport, pcm_port_cable_diag_t *status)
 {
     return soc_phyctrl_cable_diag(unit, lport, status);
@@ -1506,13 +1347,13 @@ pcm_phyctrl_phy_cable_diag(int unit, int lport, pcm_port_cable_diag_t *status)
  *      lport - Logical port #.
  *      support - (OUT) cable diag support
  * Return Value:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  * Notes:
  *      Cable diagnostics are only supported by some phy types
  *      (currently 5248 10/100 phy and 546x 10/100/1000 phys)
  */
-int
+sys_error_t
 pcm_phyctrl_phy_cable_diag_support(int unit, int lport, int *support)
 {
     phy_ctrl_t *ext_pc;
@@ -1539,8 +1380,8 @@ pcm_phyctrl_phy_cable_diag_support(int unit, int lport, int *support)
  *      lport - Logical port #.
  *      internal - 1: internal PHY
  * Return Value:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  * Notes:
  */
 const char *
@@ -1582,11 +1423,11 @@ pcm_phyctrl_phy_get_driver_name(int unit, int lport, uint32 internal)
  *      iaddr - Internal PHY address
  *      addr -  External PHY address
  * Return Value:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  * Notes:
  */
-int
+sys_error_t
 pcm_phyctrl_phy_addr_get(int unit, int lport, uint32 *iaddr, uint32 *addr)
 {
     *iaddr = soc_phy_addr_int_of_port(unit, lport);
@@ -1640,7 +1481,7 @@ pcm_phyctrl_phy_addr_get(int unit, int lport, uint32 *iaddr, uint32 *addr)
 #define PHY_XGS_IBLK_DBG_BIT15  1
 #endif
 
-int
+sys_error_t
 pcm_phyctrl_phy_bus_read(phy_ctrl_t *pc, uint32 addr, uint32 *v)
 {
     uint16 val;
@@ -1649,16 +1490,16 @@ pcm_phyctrl_phy_bus_read(phy_ctrl_t *pc, uint32 addr, uint32 *v)
     rv = pc->read(pc->unit, pc->phy_id, addr, &val);
     *v = val;
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
-int
+sys_error_t
 pcm_phyctrl_phy_bus_write(phy_ctrl_t *pc, uint32 addr, uint32 v)
 {
     return pc->write(pc->unit, pc->phy_id, addr, v);
 }
 
-static int
+static sys_error_t
 pcm_phyctrl_phy_brcm_shadow_write(phy_ctrl_t *pc, uint32 addr, uint32 data)
 {
     int ioerr = 0;
@@ -1691,10 +1532,10 @@ pcm_phyctrl_phy_brcm_shadow_write(phy_ctrl_t *pc, uint32 addr, uint32 data)
     }
     ioerr += PHY_BUS_WRITE(pc, reg_addr, data);
 
-    return ioerr;
+    return (ioerr) ? SYS_ERR : SYS_OK;
 }
 
-int
+sys_error_t
 pcm_phyctrl_phy_brcm_shadow_read(phy_ctrl_t *pc, uint32 addr, uint32 *data)
 {
     int ioerr = 0;
@@ -1725,10 +1566,10 @@ pcm_phyctrl_phy_brcm_shadow_read(phy_ctrl_t *pc, uint32 addr, uint32 *data)
     }
     ioerr += PHY_BUS_READ(pc, reg_addr, data);
 
-    return ioerr;
+    return (ioerr) ? SYS_ERR : SYS_OK;
 }
 
-int
+sys_error_t
 pcm_phyctrl_phy_brcm_1000x_read(phy_ctrl_t *pc, uint32 addr, uint32 *data)
 {
     int ioerr = 0;
@@ -1746,10 +1587,10 @@ pcm_phyctrl_phy_brcm_1000x_read(phy_ctrl_t *pc, uint32 addr, uint32 *data)
     /* Map copper registers */
     ioerr += PHY_BUS_WRITE(pc, 0x1c, (blk_sel & 0x7ffe) | 0x8000);
 
-    return ioerr;
+    return (ioerr) ? SYS_ERR : SYS_OK;
 }
 
-int
+sys_error_t
 pcm_phyctrl_phy_brcm_1000x_write(phy_ctrl_t *pc, uint32 addr, uint32 data)
 {
     int ioerr = 0;
@@ -1767,10 +1608,10 @@ pcm_phyctrl_phy_brcm_1000x_write(phy_ctrl_t *pc, uint32 addr, uint32 data)
     /* Map copper registers */
     ioerr += PHY_BUS_WRITE(pc, 0x1c, (blk_sel & 0x7ffe) | 0x8000);
 
-    return ioerr;
+    return (ioerr) ? SYS_ERR : SYS_OK;
 }
 
-int
+sys_error_t
 pcm_phyctrl_phy_brcm_rdb_read(phy_ctrl_t *pc, uint32 addr, uint32 *data)
 {
     int ioerr = 0;
@@ -1783,10 +1624,10 @@ pcm_phyctrl_phy_brcm_rdb_read(phy_ctrl_t *pc, uint32 addr, uint32 *data)
     ioerr += PHY_BUS_WRITE(pc, 0x1e, 0x0087);
     ioerr += PHY_BUS_WRITE(pc, 0x1f, 0x8000);
 
-    return ioerr;
+    return (ioerr) ? SYS_ERR : SYS_OK;
 }
 
-int
+sys_error_t
 pcm_phyctrl_phy_brcm_rdb_write(phy_ctrl_t *pc, uint32 addr, uint32 data)
 {
     int ioerr = 0;
@@ -1799,10 +1640,10 @@ pcm_phyctrl_phy_brcm_rdb_write(phy_ctrl_t *pc, uint32 addr, uint32 data)
     ioerr += PHY_BUS_WRITE(pc, 0x1e, 0x0087);
     ioerr += PHY_BUS_WRITE(pc, 0x1f, 0x8000);
 
-    return ioerr;
+    return (ioerr) ? SYS_ERR : SYS_OK;
 }
 
-int
+sys_error_t
 pcm_phyctrl_phy_xgs_iblk_read(phy_ctrl_t *pc, uint32 addr, uint32 *data)
 {
     int ioerr = 0;
@@ -1818,7 +1659,7 @@ pcm_phyctrl_phy_xgs_iblk_read(phy_ctrl_t *pc, uint32 addr, uint32 *data)
             devad = 1;
         }
         ioerr += PHY_BUS_READ(pc, addr | (devad << 16), data);
-        return ioerr;
+        return (ioerr) ? SYS_ERR : SYS_OK;
     }
 
     /* Select device if non-zero */
@@ -1843,10 +1684,10 @@ pcm_phyctrl_phy_xgs_iblk_read(phy_ctrl_t *pc, uint32 addr, uint32 *data)
         ioerr += PHY_BUS_WRITE(pc, 0x1e, 0);
     }
 
-    return ioerr;
+    return (ioerr) ? SYS_ERR : SYS_OK;
 }
 
-int
+sys_error_t
 pcm_phyctrl_phy_xgs_iblk_write(phy_ctrl_t *pc, uint32_t addr, uint32_t data)
 {
     int ioerr = 0;
@@ -1860,7 +1701,7 @@ pcm_phyctrl_phy_xgs_iblk_write(phy_ctrl_t *pc, uint32_t addr, uint32_t data)
             devad = 1;
         }
         ioerr += PHY_BUS_WRITE(pc, addr | (devad << 16), data);
-        return ioerr;
+        return (ioerr) ? SYS_ERR : SYS_OK;
     }
 
     /* Select device if non-zero */
@@ -1885,10 +1726,10 @@ pcm_phyctrl_phy_xgs_iblk_write(phy_ctrl_t *pc, uint32_t addr, uint32_t data)
         ioerr += PHY_BUS_WRITE(pc, 0x1e, 0);
     }
 
-    return ioerr;
+    return (ioerr) ? SYS_ERR : SYS_OK;
 }
 
-int
+sys_error_t
 pcm_phyctrl_phy_xaui_iblk_read(phy_ctrl_t *pc, uint32_t addr, uint32_t *data)
 {
     int ioerr = 0;
@@ -1909,10 +1750,10 @@ pcm_phyctrl_phy_xaui_iblk_read(phy_ctrl_t *pc, uint32_t addr, uint32_t *data)
     /* Read mapped register */
     ioerr += pcm_phyctrl_phy_xgs_iblk_read(pc, addr, data);
 
-    return ioerr;
+    return (ioerr) ? SYS_ERR : SYS_OK;
 }
 
-static int
+static sys_error_t
 pcm_phyctrl_phy_xaui_iblk_write(phy_ctrl_t *pc, uint32_t addr, uint32_t data)
 {
     int ioerr = 0;
@@ -1933,13 +1774,13 @@ pcm_phyctrl_phy_xaui_iblk_write(phy_ctrl_t *pc, uint32_t addr, uint32_t data)
     /* Write mapped register */
     ioerr += pcm_phyctrl_phy_xgs_iblk_write(pc, addr, data);
 
-    return ioerr;
+    return (ioerr) ? SYS_ERR : SYS_OK;
 }
 
 /* Shadow registers reside at offset 0xfff0 in clause 45 device 7 */
 #define _SHDW(_regad) ((_regad) | 0x7fff0)
 
-static int
+static sys_error_t
 pcm_phyctrl_phy_brcm_xe_write(phy_ctrl_t *pc, uint32_t addr, uint32_t data)
 {
     int ioerr = 0;
@@ -1970,13 +1811,13 @@ pcm_phyctrl_phy_brcm_xe_write(phy_ctrl_t *pc, uint32_t addr, uint32_t data)
         ioerr += PHY_BUS_WRITE(pc, addr & 0x1fffff, data);
     }
 
-    return ioerr;
+    return (ioerr) ? SYS_ERR : SYS_OK;
 }
 
 /* Shadow registers reside at offset 0xfff0 in clause 45 device 7 */
 #define _SHDW(_regad) ((_regad) | 0x7fff0)
 
-static int
+static sys_error_t
 pcm_phyctrl_phy_brcm_xe_read(phy_ctrl_t *pc, uint32_t addr, uint32_t *data)
 {
     int ioerr = 0;
@@ -2004,7 +1845,7 @@ pcm_phyctrl_phy_brcm_xe_read(phy_ctrl_t *pc, uint32_t addr, uint32_t *data)
         ioerr += PHY_BUS_READ(pc, addr & 0x1fffff, data);
     }
 
-    return ioerr;
+    return (ioerr) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -2018,17 +1859,17 @@ pcm_phyctrl_phy_brcm_xe_read(phy_ctrl_t *pc, uint32_t addr, uint32_t *data)
  *      flags -
  *      phy_reg_addr - address of phy register
  * Return Value:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  * Notes:
  */
-int
+sys_error_t
 pcm_phyctrl_phy_reg_get(int unit, int lport, uint32 index, uint32 phy_reg_addr,
                         uint32 *data)
 {
     phy_ctrl_t *pc;
     const phymod_access_t *pa;
-    int r = SOC_E_NONE;
+    int rv = SOC_E_NONE;
 
     if (index == 0 && EXT_PHY_SW_STATE(unit, lport) != NULL) {
         pc = EXT_PHY_SW_STATE(unit, lport);
@@ -2044,43 +1885,43 @@ pcm_phyctrl_phy_reg_get(int unit, int lport, uint32 index, uint32 phy_reg_addr,
 
     switch (PHY_REG_ACCESS_METHOD(phy_reg_addr)) {
     case PHY_REG_ACC_BRCM_SHADOW:
-        r = pcm_phyctrl_phy_brcm_shadow_read(pc, phy_reg_addr, data);
+        rv = pcm_phyctrl_phy_brcm_shadow_read(pc, phy_reg_addr, data);
         break;
     case PHY_REG_ACC_BRCM_1000X:
-        r = pcm_phyctrl_phy_brcm_1000x_read(pc, phy_reg_addr, data);
+        rv = pcm_phyctrl_phy_brcm_1000x_read(pc, phy_reg_addr, data);
         break;
     case PHY_REG_ACC_XGS_IBLK:
-        r = pcm_phyctrl_phy_xgs_iblk_read(pc, phy_reg_addr, data);
+        rv = pcm_phyctrl_phy_xgs_iblk_read(pc, phy_reg_addr, data);
         break;
     case PHY_REG_ACC_XAUI_IBLK:
-        r = pcm_phyctrl_phy_xaui_iblk_read(pc, phy_reg_addr, data);
+        rv = pcm_phyctrl_phy_xaui_iblk_read(pc, phy_reg_addr, data);
         break;
     case PHY_REG_ACC_AER_IBLK:
         if (pa == NULL) {
             return SOC_E_FAIL;
         }
         /* TO-CHECK ME */
-        r = phymod_bus_read(pa, phy_reg_addr, data);
+        rv = phymod_bus_read(pa, phy_reg_addr, data);
         break;
     case PHY_REG_ACC_BRCM_XE:
-        r = pcm_phyctrl_phy_brcm_xe_read(pc, phy_reg_addr, data);
+        rv = pcm_phyctrl_phy_brcm_xe_read(pc, phy_reg_addr, data);
         break;
     case PHY_REG_ACC_TSC_IBLK:
         if (pa == NULL) {
             return SOC_E_FAIL;
         }
         /* TO-CHECK ME */
-        r = phymod_bus_read(pa, phy_reg_addr, data);
+        rv = phymod_bus_read(pa, phy_reg_addr, data);
         break;
     case PHY_REG_ACC_BRCM_RDB:
-        r = pcm_phyctrl_phy_brcm_rdb_read(pc, phy_reg_addr, data);
+        rv = pcm_phyctrl_phy_brcm_rdb_read(pc, phy_reg_addr, data);
         break;
     default:
-        r = PHY_BUS_READ(pc, phy_reg_addr, data);
+        rv = PHY_BUS_READ(pc, phy_reg_addr, data);
         break;
     }
 
-    return r;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -2093,17 +1934,17 @@ pcm_phyctrl_phy_reg_get(int unit, int lport, uint32 index, uint32 phy_reg_addr,
  *      lport - Logical port #.
  *      flags -
  * Return Value:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  * Notes:
  */
-int
+sys_error_t
 pcm_phyctrl_phy_reg_set(int unit, int lport, uint32 flags, uint32 phy_reg_addr,
                         uint32 data)
 {
     phy_ctrl_t *pc;
     const phymod_access_t *pa;
-    int r = SOC_E_NONE;
+    int rv = SOC_E_NONE;
 
     if (flags == 0) {
         pc = EXT_PHY_SW_STATE(unit, lport);
@@ -2121,43 +1962,43 @@ pcm_phyctrl_phy_reg_set(int unit, int lport, uint32 flags, uint32 phy_reg_addr,
 
     switch (PHY_REG_ACCESS_METHOD(phy_reg_addr)) {
     case PHY_REG_ACC_BRCM_SHADOW:
-        r = pcm_phyctrl_phy_brcm_shadow_write(pc, phy_reg_addr, data);
+        rv = pcm_phyctrl_phy_brcm_shadow_write(pc, phy_reg_addr, data);
         break;
     case PHY_REG_ACC_BRCM_1000X:
-        r = pcm_phyctrl_phy_brcm_1000x_write(pc, phy_reg_addr, data);
+        rv = pcm_phyctrl_phy_brcm_1000x_write(pc, phy_reg_addr, data);
         break;
     case PHY_REG_ACC_XGS_IBLK:
-        r = pcm_phyctrl_phy_xgs_iblk_write(pc, phy_reg_addr, data);
+        rv = pcm_phyctrl_phy_xgs_iblk_write(pc, phy_reg_addr, data);
         break;
     case PHY_REG_ACC_XAUI_IBLK:
-        r = pcm_phyctrl_phy_xaui_iblk_write(pc, phy_reg_addr, data);
+        rv = pcm_phyctrl_phy_xaui_iblk_write(pc, phy_reg_addr, data);
         break;
     case PHY_REG_ACC_AER_IBLK:
         if (pa == NULL) {
             return SOC_E_FAIL;
         }
-        r = phymod_bus_write(pa, phy_reg_addr, data);
+        rv = phymod_bus_write(pa, phy_reg_addr, data);
         break;
     case PHY_REG_ACC_BRCM_XE:
-        r = pcm_phyctrl_phy_brcm_xe_write(pc, phy_reg_addr, data);
+        rv = pcm_phyctrl_phy_brcm_xe_write(pc, phy_reg_addr, data);
         break;
     case PHY_REG_ACC_TSC_IBLK:
         if (pa == NULL) {
             return SOC_E_FAIL;
         }
         
-        /* r = phymod_tsc_iblk_write(pa, phy_reg_addr, data); */
-        r = SOC_E_NONE;
+        /* rv = phymod_tsc_iblk_write(pa, phy_reg_addr, data); */
+        rv = SOC_E_NONE;
         break;
     case PHY_REG_ACC_BRCM_RDB:
-        r = pcm_phyctrl_phy_brcm_rdb_write(pc, phy_reg_addr, data);
+        rv = pcm_phyctrl_phy_brcm_rdb_write(pc, phy_reg_addr, data);
         break;
     default:
-        r = PHY_BUS_WRITE(pc, phy_reg_addr, data);
+        rv = PHY_BUS_WRITE(pc, phy_reg_addr, data);
         break;
     }
 
-    return r;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -2172,11 +2013,11 @@ pcm_phyctrl_phy_reg_set(int unit, int lport, uint32 flags, uint32 phy_reg_addr,
  *                 1: Native EEE
  *                 2: Auto Green EEE
  * Return Value:
- *    _SHR_E_NONE
- *     _SHR_E_XXX
+ *      SYS_OK
+ *      SYS_ERR
  * Notes:
  */
-int
+sys_error_t
 pcm_phyctrl_port_eee_enable_set(int unit, int lport, int enable, int* mode)
 {
     int rv = SOC_E_UNAVAIL, rv_mac, rv_phy;
@@ -2260,7 +2101,7 @@ pcm_phyctrl_port_eee_enable_set(int unit, int lport, int enable, int* mode)
         }
     }
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -2269,16 +2110,19 @@ pcm_phyctrl_port_eee_enable_set(int unit, int lport, int enable, int* mode)
  * Purpose:
  *      Initialization of software for port subsystem.
  * Parameters:
- *      unit - StrataSwitch unit number.
+ *      unit - Unit #.
  * Returns:
- *      BCM_E_NONE - success (or already initialized)
- *      BCM_E_INTERNAL- failed to write PTABLE entries
- *      BCM_E_MEMORY - failed to allocate required memory.
+ *      SYS_OK
+ *      SYS_ERR
  */
-static int
+static sys_error_t
 pcm_phyctrl_port_software_init(int unit)
 {
-    return soc_phy_common_init(unit);
+    int rv;
+
+    rv = soc_phy_common_init(unit);
+
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -2295,7 +2139,7 @@ pcm_phyctrl_port_software_init(int unit)
  * Notes:
  *      Must be called with PORT_LOCK held.
  */
-static int
+static sys_error_t
 pcm_phyctrl_port_mode_setup(int unit, int port, int enable)
 {
     soc_port_if_t pif;
@@ -2344,7 +2188,7 @@ pcm_phyctrl_port_mode_setup(int unit, int port, int enable)
     return SOC_E_NONE;
 }
 
-int
+sys_error_t
 pcm_phyctrl_port_mode_to_ability(soc_port_mode_t mode,
                                  soc_port_ability_t *ability)
 {
@@ -2428,7 +2272,7 @@ pcm_phyctrl_port_mode_to_ability(soc_port_mode_t mode,
  *      If error is returned, the port should not be enabled.
  */
 
-static int
+static sys_error_t
 pcm_phyctrl_port_mac_init(int unit, bcm_port_t port, int *okay)
 {
     int rv;
@@ -2443,9 +2287,9 @@ pcm_phyctrl_port_mac_init(int unit, bcm_port_t port, int *okay)
     if ((rv = soc_mac_probe(unit, port, &macd)) < 0) {
         LOG_WARN(BSL_LS_BCM_PORT,
                  (BSL_META_U(unit,
-                             "Port %s: Failed to probe MAC: %s\n"),
+                             "Port %d: Failed to probe MAC: %s\n"),
                   SOC_PORT_NAME(unit, port), soc_errmsg(rv)));
-        return rv;
+        return (rv) ? SYS_ERR : SYS_OK;
     }
 
     PORT(unit, port).p_mac = macd;
@@ -2453,9 +2297,9 @@ pcm_phyctrl_port_mac_init(int unit, bcm_port_t port, int *okay)
     if ((rv = MAC_INIT(PORT(unit, port).p_mac, unit, port)) < 0) {
          LOG_WARN(BSL_LS_BCM_PORT,
                   (BSL_META_U(unit,
-                              "Port %s: Failed to initialize MAC: %s\n"),
+                              "Port %d: Failed to initialize MAC: %s\n"),
                    SOC_PORT_NAME(unit, port), soc_errmsg(rv)));
-          return rv;
+          return (rv) ? SYS_ERR : SYS_OK;
     }
 
     /* Probe function should leave port disabled */
@@ -2486,7 +2330,7 @@ pcm_phyctrl_port_mac_init(int unit, bcm_port_t port, int *okay)
  *      Note that if a PHY is not present, the port will still probe
  *      successfully.  The default driver will be installed.
  */
-int
+sys_error_t
 pcm_phyctrl_port_probe(int unit, pbmp_t pbmp, pbmp_t *okay_pbmp)
 {
     int rv = SOC_E_NONE;
@@ -2513,13 +2357,13 @@ pcm_phyctrl_port_probe(int unit, pbmp_t pbmp, pbmp_t *okay_pbmp)
         if (rv < 0) {
             LOG_WARN(BSL_LS_BCM_PORT,
                      (BSL_META_U(unit,
-                                 "MAC init failed on port %s\n"),
+                                 "MAC init failed on port %d\n"),
                       SOC_PORT_NAME(unit, port)));
             break;
         }
     }
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -2556,16 +2400,8 @@ pcm_phyctrl_port_probe(int unit, pbmp_t pbmp, pbmp_t *okay_pbmp)
  *          port_init_autoneg=0
  *      in order to force link into a certain mode. (It is very important to
  *      disable autonegotiation in this case).
- *
- *      PLEASE NOTE:
- *          The standard rc.soc forces autoneg=on on all the ethernet ports
- *          (FE and GE). Thus, to use the second example one has to edit rc.soc
- *          as well.
- *
- *     This function has been declared as global, but not exported. This will
- *     make port initialization easier when using VxWorks shell.
  */
-int
+sys_error_t
 pcm_phyctrl_port_settings_init(int unit, int port)
 {
     int an, duplex, speed, adv;
@@ -2576,47 +2412,43 @@ pcm_phyctrl_port_settings_init(int unit, int port)
                          "bcm_port_settings_init: u=%d p=%d\n"),
               unit, port));
 
-    an = soc_property_port_get(unit, port, spn_PORT_INIT_AUTONEG, -1);
+    an = soc_property_port_get(unit, port, spn_PORT_INIT_AUTONEG, 0);
     if (an != -1) {
         pcm_phyctrl_port_autoneg_set(unit, port, an);
     } else {
         pcm_phyctrl_port_autoneg_get(unit, port, &an);
     }
 
-    speed = soc_property_port_get(unit, port, spn_PORT_INIT_SPEED, -1);
-    if (speed != -1 ) {
-        if (an) {
-            LOG_VERBOSE(BSL_LS_BCM_PORT,
-                        (BSL_META_U(unit,
-                                    "bcm_port_speed_set failed due to AN enable"
-                                    "\n")));
-        } else {
-            pcm_phyctrl_port_speed_set(unit, port, speed);
-        }
-    } else {
-        pcm_phyctrl_port_speed_get(unit, port, &speed);
-    }
-
-    duplex = soc_property_port_get(unit, port, spn_PORT_INIT_DUPLEX, -1);
-    if (duplex != -1) {
-        if (an) {
-            LOG_VERBOSE(BSL_LS_BCM_PORT,
-                        (BSL_META_U(unit,
-                                    "pcm_phyctrl_port_duplex_set failed due to "
-                                    "AN enable\n")));
-        } else {
-            pcm_phyctrl_port_duplex_set(unit, port, duplex);
-        }
-    }
-
     adv = soc_property_port_get(unit, port, spn_PORT_INIT_ADV, -1);
-
     if (adv != -1) {
         pcm_phyctrl_port_mode_to_ability(adv, &local_adv);
         pcm_phyctrl_port_ability_advert_set(unit, port, &local_adv);
     }
 
-    return SOC_E_NONE;
+#ifdef JUMBO_FRM_SIZE
+    pcm_port_frame_max_set(unit, port, JUMBO_FRM_SIZE);
+#endif
+
+    if (an) {
+        return SYS_OK;
+    }
+
+    speed = soc_property_port_get(unit, port, spn_PORT_INIT_SPEED,
+                                  SOC_PORT_SPEED_MAX(port));
+    if (speed != -1) {
+        pcm_phyctrl_port_speed_set(unit, port, speed);
+    } else {
+        pcm_phyctrl_port_speed_get(unit, port, &speed);
+    }
+
+    duplex = soc_property_port_get(unit, port, spn_PORT_INIT_DUPLEX, 1);
+    if (duplex != -1) {
+        pcm_phyctrl_port_duplex_set(unit, port, duplex);
+    }
+
+    pcm_portctrl_port_pause_set(unit, port, 1, 1);
+
+    return SYS_OK;
 }
 
 /*
@@ -2635,7 +2467,7 @@ pcm_phyctrl_port_settings_init(int unit, int port)
  *      at startup by a compile-time application policy flag in your Make.local
  *      PTABLE initialized.
  */
-int
+sys_error_t
 pcm_phyctrl_port_probe_init(int unit, pbmp_t lpbmp, pbmp_t *okay_lpbmp)
 {
     int rv, port_enable;
@@ -2652,16 +2484,9 @@ pcm_phyctrl_port_probe_init(int unit, pbmp_t lpbmp, pbmp_t *okay_lpbmp)
                               "Error unit %d:  Failed software port init: "
                               "%s\n"),
                    unit, bcm_errmsg(rv)));
-        return rv;
+        return (rv) ? SYS_ERR : SYS_OK;
     }
 
-    
-    #if 0
-    if (SAL_BOOT_SIMULATION &&
-        soc_property_get(unit, "skip_port_hw_init", 0)) {
-        return SOC_E_NONE;
-    }
-    #endif
     /* Probe for ports */
     PBMP_CLEAR(*okay_lpbmp);
     rv = pcm_phyctrl_port_probe(unit, lpbmp, okay_lpbmp);
@@ -2670,17 +2495,9 @@ pcm_phyctrl_port_probe_init(int unit, pbmp_t lpbmp, pbmp_t *okay_lpbmp)
                   (BSL_META_U(unit,
                               "Error unit %d:  Failed port probe: %s\n"),
                    unit, bcm_errmsg(rv)));
-        return rv;
+        return (rv) ? SYS_ERR : SYS_OK;
     }
 
-    
-    #if 0
-    LOG_VERBOSE(BSL_LS_BCM_PORT,
-                (BSL_META_U(unit,
-                            "Probed ports okay: %s of %s\n"),
-                 SOC_PBMP_FMT(okay_ports, pfmtok),
-                 SOC_PBMP_FMT(PBMP_PORT_ALL(unit), pfmtall)));
-    #endif
     /*
      * A compile-time application policy may prefer to disable ports
      * when switch boots up
@@ -2730,7 +2547,6 @@ pcm_phyctrl_port_probe_init(int unit, pbmp_t lpbmp, pbmp_t *okay_lpbmp)
          * A compile-time application policy may prefer to disable ports
          * when switch boots up
          */
-
         port_enable = FALSE;
 
         if(!SOC_IS_SABER2(unit)) {
@@ -2748,6 +2564,151 @@ pcm_phyctrl_port_probe_init(int unit, pbmp_t lpbmp, pbmp_t *okay_lpbmp)
     return 0;
 }
 
+
+/*
+ * Function:
+ *      pcm_phyctrl_port_reinit
+ * Purpose:
+ *      Detach a port.  Set phy driver to no connection.
+ * Parameters:
+ *      unit - StrataSwitch unit number.
+ *      port - StrataSwitch port #.
+ * Returns:
+ *      SYS_OK
+ *      SYS_ERR - internal error.
+ * Notes:
+ *      If a port to be detached does not appear in detached, its
+ *      state is not defined.
+ */
+sys_error_t
+pcm_phyctrl_port_reinit(int unit, int port)
+{
+    int rv;
+    phy_ctrl_t *int_pc, *ext_pc;
+    int okay;
+
+    /* Port disable */
+    rv = pcm_phyctrl_port_enable_set(unit, port, 0);
+    if (SOC_FAILURE(rv)) {
+        return SYS_ERR;
+    }
+
+    rv = pcm_phyctrl_port_autoneg_set(unit, port, 0);
+    if (SOC_FAILURE(rv)) {
+        return SYS_ERR;
+    }
+
+    /* Port detach */
+    rv = pcm_phyctrl_port_mode_setup(unit, port, FALSE);
+    if (SOC_FAILURE(rv)) {
+        return SYS_ERR;
+    }
+
+    rv = soc_phyctrl_detach(unit, port);
+    if (SOC_FAILURE(rv)) {
+        return SYS_ERR;
+    }
+
+    /* Port attach */
+    rv = soc_phyctrl_probe(unit, port);
+    if (SOC_FAILURE(rv)) {
+        return SYS_ERR;
+    }
+
+    ext_pc = EXT_PHY_SW_STATE(unit, port);
+    int_pc = INT_PHY_SW_STATE(unit, port);
+
+    /* Do PHY init pass1 */
+    if (ext_pc) {
+        PHYCTRL_INIT_STATE_SET(ext_pc,PHYCTRL_INIT_STATE_PASS1);
+    }
+    if (int_pc) {
+        PHYCTRL_INIT_STATE_SET(int_pc,PHYCTRL_INIT_STATE_PASS1);
+    }
+    rv = soc_phyctrl_init(unit, port);
+    if (SOC_FAILURE(rv)) {
+        return SYS_ERR;
+    }
+
+    /* Do PHY init pass2 if requested */
+    if (int_pc) {
+        if (PHYCTRL_INIT_STATE(int_pc) == PHYCTRL_INIT_STATE_PASS2) {
+            rv = (PHY_INIT(int_pc->pd, unit, port));
+            if (SOC_FAILURE(rv)) {
+                return SYS_ERR;
+            }
+        }
+    }
+    if (ext_pc) {
+        if (PHYCTRL_INIT_STATE(ext_pc) == PHYCTRL_INIT_STATE_PASS2) {
+            rv = (PHY_INIT(ext_pc->pd, unit, port));
+            if (SOC_FAILURE(rv)) {
+                return SYS_ERR;
+            }
+        }
+    }
+
+    /* Do PHY init pass3 if requested */
+    if (int_pc) {
+        if (PHYCTRL_INIT_STATE(int_pc) == PHYCTRL_INIT_STATE_PASS3) {
+            rv = (PHY_INIT(int_pc->pd, unit, port));
+            if (SOC_FAILURE(rv)) {
+                return SYS_ERR;
+            }
+        }
+    }
+    if (ext_pc) {
+        if (PHYCTRL_INIT_STATE(ext_pc) == PHYCTRL_INIT_STATE_PASS3) {
+            rv = (PHY_INIT(ext_pc->pd, unit, port));
+            if (SOC_FAILURE(rv)) {
+                return SYS_ERR;
+            }
+        }
+    }
+
+    rv = soc_phyctrl_enable_set(unit, port, 0);
+    if (SOC_FAILURE(rv)) {
+        return SYS_ERR;
+    }
+
+    rv = pcm_phyctrl_port_mac_init(unit, port, &okay);
+    if (SOC_FAILURE(rv)) {
+        return SYS_ERR;
+    }
+
+    /* Probe and initialize MAC and PHY drivers for ports that were OK */
+    LOG_VERBOSE(BSL_LS_BCM_PORT,
+                (BSL_META_U(unit,
+                            "bcm_port_init: unit %d port %d\n"),
+                            unit, port));
+
+    rv = pcm_phyctrl_port_mode_setup(unit, port, TRUE);
+    if (SOC_FAILURE(rv)) {
+         LOG_WARN(BSL_LS_BCM_PORT,
+                     (BSL_META_U(unit,
+                                 "Warning: Port %d: "
+                                 "Failed to set initial mode: %s\n"),
+                      port, bcm_errmsg(rv)));
+    }
+
+    rv = pcm_phyctrl_port_settings_init(unit, port);
+    if (SOC_FAILURE(rv)) {
+        LOG_WARN(BSL_LS_BCM_PORT,
+                 (BSL_META_U(unit,
+                             "Warning: Port %d: "
+                             "Failed to configure initial settings: %s\n"),
+                  port, bcm_errmsg(rv)));
+    }
+
+    /* Port enable */
+    rv = pcm_phyctrl_port_enable_set(unit, port, 1);
+    if (SOC_FAILURE(rv)) {
+        return SYS_ERR;
+    }
+
+    return (rv) ? SYS_ERR : SYS_OK;
+}
+
 /*
  * Function:
  *      pcm_phyctrl_port_pause_addr_get
@@ -2763,14 +2724,14 @@ pcm_phyctrl_port_probe_init(int unit, pbmp_t lpbmp, pbmp_t *okay_lpbmp)
   * Notes:
   *      Symmetric pause requires the two "pause" values to be the same.
   */
-int
+sys_error_t
 pcm_phyctrl_port_pause_addr_get(int unit, int port, sal_mac_addr_t mac)
 {
     int rv;
 
     rv = MAC_PAUSE_ADDR_GET(PORT(unit, port).p_mac, unit, port, mac);
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
 /*
@@ -2788,18 +2749,590 @@ pcm_phyctrl_port_pause_addr_get(int unit, int port, sal_mac_addr_t mac)
  * Notes:
  *      Symmetric pause requires the two "pause" values to be the same.
  */
-int
+sys_error_t
 pcm_phyctrl_port_pause_addr_set(int unit, int port, sal_mac_addr_t mac)
 {
     int rv;
 
     rv = MAC_PAUSE_ADDR_SET(PORT(unit, port).p_mac, unit, port, mac);
 
-    return rv;
+    return (rv) ? SYS_ERR : SYS_OK;
 }
 
-int
+sys_error_t
 pcm_phyctrl_phy_notify(int unit, int port, int event, uint32 value)
 {
     return soc_phyctrl_notify(unit, port, (soc_phy_event_t)event, value);
+}
+
+sys_error_t
+pcm_phyctrl_phy_timesync_enable_get(int unit, int lport, int *en)
+{
+    int rv;
+    phy_driver_t *pd;
+    soc_port_phy_timesync_config_t conf;
+
+    if (!en) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    pd = pcm_phyctrl_phy_driver_get(unit, lport);
+    if (!pd) {
+        return SYS_ERR;
+    }
+
+    sal_memset(&conf, 0, sizeof(conf));
+    rv = PHY_TIMESYNC_CONFIG_GET(pd, unit, lport, &conf);
+    if (rv != SOC_E_NONE) {
+        return SYS_ERR;
+    }
+
+    *en = (conf.flags & SOC_PORT_PHY_TIMESYNC_ENABLE) ? 1 : 0;
+
+    return SYS_OK;
+}
+
+sys_error_t
+pcm_phyctrl_phy_timesync_enable_set(int unit, int lport, int en)
+{
+    int rv;
+    phy_driver_t *pd;
+    soc_port_phy_timesync_config_t conf;
+
+    pd = pcm_phyctrl_phy_driver_get(unit, lport);
+    if (!pd) {
+        return SYS_ERR;
+    }
+
+    sal_memset(&conf, 0, sizeof(conf));
+    if (en) {
+        conf.flags |= SOC_PORT_PHY_TIMESYNC_ENABLE;
+    }
+    rv = PHY_TIMESYNC_CONFIG_SET(pd, unit, lport, &conf);
+
+    return (rv == SOC_E_NONE) ? SYS_OK : SYS_ERR;
+}
+
+sys_error_t
+pcm_phyctrl_phy_timesync_ctrl_get(int unit, int lport,
+                                  pcm_phy_timesync_ctrl_t type, uint64 *value)
+{
+    int rv;
+    phy_driver_t *pd;
+    soc_port_control_phy_timesync_t ctrl_type;
+
+    if (!value) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    switch (type) {
+    case PCM_PHY_TIMESYNC_TIMESTAMP_OFFSET:
+        ctrl_type = SOC_PORT_CONTROL_PHY_TIMESYNC_TIMESTAMP_OFFSET;
+        break;
+    case PCM_PHY_TIMESYNC_TIMESTAMP_ADJUST:
+        ctrl_type = SOC_PORT_CONTROL_PHY_TIMESYNC_TIMESTAMP_ADJUST;
+        break;
+    default:
+        return SYS_ERR_PARAMETER;
+    }
+
+    pd = pcm_phyctrl_phy_driver_get(unit, lport);
+    if (!pd) {
+        return SYS_ERR;
+    }
+
+    rv = PHY_TIMESYNC_CONTROL_GET(pd, unit, lport, ctrl_type, value);
+
+    return (rv == SOC_E_NONE) ? SYS_OK : SYS_ERR;
+}
+
+sys_error_t
+pcm_phyctrl_phy_timesync_ctrl_set(int unit, int lport,
+                                  pcm_phy_timesync_ctrl_t type, uint64 value)
+{
+    int rv;
+    phy_driver_t *pd;
+    soc_port_control_phy_timesync_t ctrl_type;
+
+    switch (type) {
+    case PCM_PHY_TIMESYNC_TIMESTAMP_OFFSET:
+        ctrl_type = SOC_PORT_CONTROL_PHY_TIMESYNC_TIMESTAMP_OFFSET;
+        break;
+    case PCM_PHY_TIMESYNC_TIMESTAMP_ADJUST:
+        ctrl_type = SOC_PORT_CONTROL_PHY_TIMESYNC_TIMESTAMP_ADJUST;
+        break;
+    default:
+        return SYS_ERR_PARAMETER;
+    }
+
+    pd = pcm_phyctrl_phy_driver_get(unit, lport);
+    if (!pd) {
+        return SYS_ERR;
+    }
+
+    rv = PHY_TIMESYNC_CONTROL_SET(pd, unit, lport, ctrl_type, value);
+
+    return (rv == SOC_E_NONE) ? SYS_OK : SYS_ERR;
+}
+
+sys_error_t
+pcm_phyctrl_port_fault_status_get(int unit, int lport,
+                                  board_port_fault_st_t *st)
+{
+    int rv, local_fault = 0, remote_fault = 0;
+
+    if (!st) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    rv = MAC_CONTROL_GET(PORT(unit, lport).p_mac, unit, lport,
+                         SOC_MAC_CONTROL_FAULT_LOCAL_STATUS, &local_fault);
+    if (rv != SYS_OK && rv != SYS_ERR_UNAVAIL) {
+        return rv;
+    }
+
+    rv = MAC_CONTROL_GET(PORT(unit, lport).p_mac, unit, lport,
+                         SOC_MAC_CONTROL_FAULT_REMOTE_STATUS, &remote_fault);
+    if (rv != SYS_OK && rv != SYS_ERR_UNAVAIL) {
+        return rv;
+    }
+
+    st->local_fault = local_fault;
+    st->remote_fault = remote_fault;
+
+    return SYS_OK;
+}
+
+sys_error_t
+pcm_phyctrl_phy_fec_status_get(int unit, int lport, board_phy_fec_st_t *st)
+{
+    int rv;
+
+    if (!st) {
+        return SYS_ERR_PARAMETER;
+    }
+    sal_memset(st, 0, sizeof(*st));
+
+    rv = soc_phyctrl_control_get(unit, lport,
+                                 SOC_PHY_CONTROL_FEC_CORRECTED_BLOCK_COUNT,
+                                 &st->corrected_blocks);
+    if (rv != SOC_E_NONE && rv != SOC_E_UNAVAIL) {
+        return SYS_ERR;
+    }
+
+    rv = soc_phyctrl_control_get(unit, lport,
+                                 SOC_PHY_CONTROL_FEC_UNCORRECTED_BLOCK_COUNT,
+                                 &st->uncorrected_blocks);
+    if (rv != SOC_E_NONE && rv != SOC_E_UNAVAIL) {
+        return SYS_ERR;
+    }
+
+    rv = soc_phyctrl_control_get(unit, lport,
+                                 SOC_PHY_CONTROL_FEC_CORRECTED_CODEWORD_COUNT,
+                                 &st->corrected_cws);
+    if (rv != SOC_E_NONE && rv != SOC_E_UNAVAIL) {
+        return SYS_ERR;
+    }
+
+    rv = soc_phyctrl_control_get(unit, lport,
+                                 SOC_PHY_CONTROL_FEC_UNCORRECTED_CODEWORD_COUNT,
+                                 &st->uncorrected_cws);
+    if (rv != SOC_E_NONE && rv != SOC_E_UNAVAIL) {
+        return SYS_ERR;
+    }
+
+    return SYS_OK;
+}
+
+sys_error_t
+pcm_phyctrl_phy_power_get(int unit, int lport, int *power)
+{
+    int rv;
+
+    if (!power) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    rv = soc_phyctrl_control_get(unit, lport, SOC_PHY_CONTROL_POWER,
+                                 (uint32 *)power);
+
+    return (rv == SOC_E_NONE) ? SYS_OK : SYS_ERR;
+}
+
+sys_error_t
+pcm_phyctrl_phy_power_set(int unit, int lport, int power)
+{
+    int rv;
+
+    rv = soc_phyctrl_control_set(unit, lport, SOC_PHY_CONTROL_POWER, power);
+
+    return (rv == SOC_E_NONE) ? SYS_OK : SYS_ERR;
+}
+
+sys_error_t
+pcm_phyctrl_phy_tx_ctrl_get(int unit, int lport, board_phy_tx_ctrl_t *ctrl)
+{
+    int rv;
+
+    if (!ctrl) {
+        return SYS_ERR_PARAMETER;
+    }
+    sal_memset(ctrl, 0, sizeof(*ctrl));
+
+    rv = soc_phyctrl_control_get(unit, lport, SOC_PHY_CONTROL_TX_FIR_PRE,
+                                 (uint32 *)&ctrl->pre);
+    if (rv != SOC_E_NONE && rv != SOC_E_UNAVAIL) {
+        return SYS_ERR;
+    }
+
+    rv = soc_phyctrl_control_get(unit, lport, SOC_PHY_CONTROL_TX_FIR_MAIN,
+                                 (uint32 *)&ctrl->main);
+    if (rv != SOC_E_NONE && rv != SOC_E_UNAVAIL) {
+        return SYS_ERR;
+    }
+
+    rv = soc_phyctrl_control_get(unit, lport, SOC_PHY_CONTROL_TX_FIR_POST,
+                                 (uint32 *)&ctrl->post);
+    if (rv != SOC_E_NONE && rv != SOC_E_UNAVAIL) {
+        return SYS_ERR;
+    }
+
+    rv = soc_phyctrl_control_get(unit, lport, SOC_PHY_CONTROL_TX_FIR_POST2,
+                                 (uint32 *)&ctrl->post2);
+    if (rv != SOC_E_NONE && rv != SOC_E_UNAVAIL) {
+        return SYS_ERR;
+    }
+
+    rv = soc_phyctrl_control_get(unit, lport, SOC_PHY_CONTROL_TX_FIR_POST3,
+                                 (uint32 *)&ctrl->post3);
+    if (rv != SOC_E_NONE && rv != SOC_E_UNAVAIL) {
+        return SYS_ERR;
+    }
+
+    return SYS_OK;
+}
+
+sys_error_t
+pcm_phyctrl_phy_tx_ctrl_set(int unit, int lport, board_phy_tx_ctrl_t *ctrl)
+{
+    int rv;
+
+    if (!ctrl) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    rv = soc_phyctrl_control_set(unit, lport, SOC_PHY_CONTROL_TX_FIR_PRE,
+                                 ctrl->pre);
+    if (rv != SOC_E_NONE && rv != SOC_E_UNAVAIL) {
+        return SYS_ERR;
+    }
+
+    rv = soc_phyctrl_control_set(unit, lport, SOC_PHY_CONTROL_TX_FIR_MAIN,
+                                 ctrl->main);
+    if (rv != SOC_E_NONE && rv != SOC_E_UNAVAIL) {
+        return SYS_ERR;
+    }
+
+    rv = soc_phyctrl_control_set(unit, lport, SOC_PHY_CONTROL_TX_FIR_POST,
+                                 ctrl->post);
+    if (rv != SOC_E_NONE && rv != SOC_E_UNAVAIL) {
+        return SYS_ERR;
+    }
+
+    rv = soc_phyctrl_control_set(unit, lport, SOC_PHY_CONTROL_TX_FIR_POST2,
+                                 ctrl->post2);
+    if (rv != SOC_E_NONE && rv != SOC_E_UNAVAIL) {
+        return SYS_ERR;
+    }
+
+    rv = soc_phyctrl_control_set(unit, lport, SOC_PHY_CONTROL_TX_FIR_POST3,
+                                 ctrl->post3);
+    if (rv != SOC_E_NONE && rv != SOC_E_UNAVAIL) {
+        return SYS_ERR;
+    }
+
+    return SYS_OK;
+}
+
+sys_error_t
+pcm_phyctrl_phy_rx_status_get(int unit, int lport, board_phy_rx_st_t *st)
+{
+    int rv, idx;
+    soc_phy_control_t dfe_taps[] = { SOC_PHY_CONTROL_RX_TAP1,
+                                     SOC_PHY_CONTROL_RX_TAP2,
+                                     SOC_PHY_CONTROL_RX_TAP3,
+                                     SOC_PHY_CONTROL_RX_TAP4,
+                                     SOC_PHY_CONTROL_RX_TAP5 };
+
+    if (!st) {
+        return SYS_ERR_PARAMETER;
+    }
+    sal_memset(st, 0, sizeof(*st));
+
+    for (idx = 0; idx < COUNTOF(dfe_taps); idx++) {
+        rv = soc_phyctrl_control_get(unit, lport, dfe_taps[idx],
+                                     (uint32 *)&st->dfe[idx]);
+        if (rv != SOC_E_NONE) {
+            break;
+        }
+    }
+    st->num_of_dfe_taps = idx;
+
+    rv = soc_phyctrl_control_get(unit, lport, SOC_PHY_CONTROL_RX_VGA,
+                                 (uint32 *)&st->vga);
+    if (rv != SOC_E_NONE && rv != SOC_E_UNAVAIL) {
+        return SYS_ERR;
+    }
+
+    rv = soc_phyctrl_control_get(unit, lport, SOC_PHY_CONTROL_RX_PPM,
+                                 (uint32 *)&st->ppm);
+    if (rv != SOC_E_NONE && rv != SOC_E_UNAVAIL) {
+        return SYS_ERR;
+    }
+
+    return SYS_OK;
+}
+
+sys_error_t
+pcm_phyctrl_phy_prbs_ctrl_get(int unit, int lport, int flags,
+                              board_phy_prbs_ctrl_t *ctrl)
+{
+    int rv;
+    uint32 poly, invert;
+
+    if (!ctrl) {
+        return SYS_ERR_PARAMETER;
+    }
+    sal_memset(ctrl, 0, sizeof(*ctrl));
+
+    if ((flags & (BOARD_PHY_PRBS_CTRL_F_RX | BOARD_PHY_PRBS_CTRL_F_TX)) == 0) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    if (flags & BOARD_PHY_PRBS_CTRL_F_TX) {
+        rv = soc_phyctrl_control_get(unit, lport,
+                                     SOC_PHY_CONTROL_PRBS_DECOUPLED_TX_POLYNOMIAL,
+                                     &poly);
+        if (rv != SOC_E_NONE) {
+            return SYS_ERR;
+        }
+
+        rv = soc_phyctrl_control_get(unit, lport,
+                                     SOC_PHY_CONTROL_PRBS_DECOUPLED_TX_INVERT_DATA,
+                                     &invert);
+        if (rv != SOC_E_NONE) {
+            return SYS_ERR;
+        }
+    } else {
+        rv = soc_phyctrl_control_get(unit, lport,
+                                     SOC_PHY_CONTROL_PRBS_DECOUPLED_RX_POLYNOMIAL,
+                                     &poly);
+        if (rv != SOC_E_NONE) {
+            return SYS_ERR;
+        }
+
+        rv = soc_phyctrl_control_get(unit, lport,
+                                     SOC_PHY_CONTROL_PRBS_DECOUPLED_RX_INVERT_DATA,
+                                     &invert);
+        if (rv != SOC_E_NONE) {
+            return SYS_ERR;
+        }
+    }
+
+    switch (poly) {
+    case SOC_PHY_PRBS_POLYNOMIAL_X7_X6_1:
+        ctrl->poly = BOARD_PHY_PRBS_POLY_7;
+        break;
+    case SOC_PHY_PRBS_POLYNOMIAL_X9_X5_1:
+        ctrl->poly = BOARD_PHY_PRBS_POLY_9;
+        break;
+    case SOC_PHY_PRBS_POLYNOMIAL_X11_X9_1:
+        ctrl->poly = BOARD_PHY_PRBS_POLY_11;
+        break;
+    case SOC_PHY_PRBS_POLYNOMIAL_X15_X14_1:
+        ctrl->poly = BOARD_PHY_PRBS_POLY_15;
+        break;
+    case SOC_PHY_PRBS_POLYNOMIAL_X23_X18_1:
+        ctrl->poly = BOARD_PHY_PRBS_POLY_23;
+        break;
+    case SOC_PHY_PRBS_POLYNOMIAL_X31_X28_1:
+        ctrl->poly = BOARD_PHY_PRBS_POLY_31;
+        break;
+    case SOC_PHY_PRBS_POLYNOMIAL_X58_X31_1:
+        ctrl->poly = BOARD_PHY_PRBS_POLY_58;
+        break;
+    default:
+        return SYS_ERR;
+    }
+    ctrl->invert = invert;
+
+    return SYS_OK;
+}
+
+sys_error_t
+pcm_phyctrl_phy_prbs_ctrl_set(int unit, int lport, int flags,
+                              board_phy_prbs_ctrl_t *ctrl)
+{
+    int rv;
+    uint32 poly;
+
+    if (!ctrl) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    if ((flags & (BOARD_PHY_PRBS_CTRL_F_RX | BOARD_PHY_PRBS_CTRL_F_TX)) == 0) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    switch (ctrl->poly) {
+    case BOARD_PHY_PRBS_POLY_7:
+        poly = SOC_PHY_PRBS_POLYNOMIAL_X7_X6_1;
+        break;
+    case BOARD_PHY_PRBS_POLY_9:
+        poly = SOC_PHY_PRBS_POLYNOMIAL_X9_X5_1;
+        break;
+    case BOARD_PHY_PRBS_POLY_11:
+        poly = SOC_PHY_PRBS_POLYNOMIAL_X11_X9_1;
+        break;
+    case BOARD_PHY_PRBS_POLY_15:
+        poly = SOC_PHY_PRBS_POLYNOMIAL_X15_X14_1;
+        break;
+    case BOARD_PHY_PRBS_POLY_23:
+        poly = SOC_PHY_PRBS_POLYNOMIAL_X23_X18_1;
+        break;
+    case BOARD_PHY_PRBS_POLY_31:
+        poly = SOC_PHY_PRBS_POLYNOMIAL_X31_X28_1;
+        break;
+    case BOARD_PHY_PRBS_POLY_58:
+        poly = SOC_PHY_PRBS_POLYNOMIAL_X58_X31_1;
+        break;
+    default:
+        return SYS_ERR_PARAMETER;
+    }
+
+    if (flags & BOARD_PHY_PRBS_CTRL_F_TX) {
+        rv = soc_phyctrl_control_set(unit, lport,
+                                     SOC_PHY_CONTROL_PRBS_DECOUPLED_TX_POLYNOMIAL,
+                                     poly);
+        if (rv != SOC_E_NONE) {
+            return SYS_ERR;
+        }
+
+        rv = soc_phyctrl_control_set(unit, lport,
+                                     SOC_PHY_CONTROL_PRBS_DECOUPLED_TX_INVERT_DATA,
+                                     ctrl->invert);
+        if (rv != SOC_E_NONE) {
+            return SYS_ERR;
+        }
+    }
+
+    if (flags & BOARD_PHY_PRBS_CTRL_F_RX) {
+        rv = soc_phyctrl_control_set(unit, lport,
+                                     SOC_PHY_CONTROL_PRBS_DECOUPLED_RX_POLYNOMIAL,
+                                     poly);
+        if (rv != SOC_E_NONE) {
+            return SYS_ERR;
+        }
+
+        rv = soc_phyctrl_control_set(unit, lport,
+                                     SOC_PHY_CONTROL_PRBS_DECOUPLED_RX_INVERT_DATA,
+                                     ctrl->invert);
+        if (rv != SOC_E_NONE) {
+            return SYS_ERR;
+        }
+    }
+
+    return SYS_OK;
+}
+
+sys_error_t
+pcm_phyctrl_phy_prbs_enable_get(int unit, int lport, int flags, int *en)
+{
+    int rv;
+
+    if (!en) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    if ((flags & (BOARD_PHY_PRBS_CTRL_F_RX | BOARD_PHY_PRBS_CTRL_F_TX)) == 0) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    if (flags & BOARD_PHY_PRBS_CTRL_F_TX) {
+        rv = soc_phyctrl_control_get(unit, lport,
+                                     SOC_PHY_CONTROL_PRBS_DECOUPLED_TX_ENABLE,
+                                     (uint32 *)en);
+        if (rv != SOC_E_NONE) {
+            return SYS_ERR;
+        }
+    } else {
+        rv = soc_phyctrl_control_get(unit, lport,
+                                     SOC_PHY_CONTROL_PRBS_DECOUPLED_RX_ENABLE,
+                                     (uint32 *)en);
+        if (rv != SOC_E_NONE) {
+            return SYS_ERR;
+        }
+    }
+
+    return SYS_OK;
+}
+
+sys_error_t
+pcm_phyctrl_phy_prbs_enable_set(int unit, int lport, int flags, int en)
+{
+    int rv;
+
+    if ((flags & (BOARD_PHY_PRBS_CTRL_F_RX | BOARD_PHY_PRBS_CTRL_F_TX)) == 0) {
+        return SYS_ERR_PARAMETER;
+    }
+
+    if (flags & BOARD_PHY_PRBS_CTRL_F_TX) {
+        rv = soc_phyctrl_control_set(unit, lport,
+                                     SOC_PHY_CONTROL_PRBS_DECOUPLED_TX_ENABLE,
+                                     en);
+        if (rv != SOC_E_NONE) {
+            return SYS_ERR;
+        }
+    }
+
+    if (flags & BOARD_PHY_PRBS_CTRL_F_RX) {
+        rv = soc_phyctrl_control_set(unit, lport,
+                                     SOC_PHY_CONTROL_PRBS_DECOUPLED_RX_ENABLE,
+                                     en);
+        if (rv != SOC_E_NONE) {
+            return SYS_ERR;
+        }
+    }
+
+    return SYS_OK;
+}
+
+
+sys_error_t
+pcm_phyctrl_phy_prbs_status_get(int unit, int lport, board_phy_prbs_st_t *st)
+{
+    int rv, prbs_st;
+
+    if (!st) {
+        return SYS_ERR_PARAMETER;
+    }
+    sal_memset(st, 0, sizeof(*st));
+
+    rv = soc_phyctrl_control_get(unit, lport, SOC_PHY_CONTROL_PRBS_RX_STATUS,
+                                 (uint32 *)&prbs_st);
+    if (rv != SOC_E_NONE) {
+        return SYS_ERR;
+    }
+
+    if (prbs_st == -1) {
+        st->prbs_lock = 0;
+    } else if (prbs_st == -2) {
+        st->prbs_lock = 1;
+        st->prbs_lock_loss = 1;
+    } else {
+        st->prbs_lock = 1;
+        st->error_count = prbs_st;
+    }
+
+    return SYS_OK;
 }

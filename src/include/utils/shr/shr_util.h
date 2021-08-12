@@ -5,7 +5,7 @@
 /*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef SHR_UTIL_H
@@ -286,7 +286,7 @@ static inline uint16_t shr_htons(uint16_t src)
  * \retval None.
  */
 static inline void
-shr_uint64_to_uint32_array(uint64_t_fixme field_val64, uint32_t *field_val)
+shr_uint64_to_uint32_array(uint64_t field_val64, uint32_t *field_val)
 {
     field_val[0] = field_val64 & 0xffffffff;
     field_val[1] = (field_val64 >> 32) & 0xffffffff;
@@ -301,9 +301,9 @@ shr_uint64_to_uint32_array(uint64_t_fixme field_val64, uint32_t *field_val)
  * \retval None.
  */
 static inline void
-shr_uint32_array_to_uint64(uint32_t *field_val, uint64_t_fixme *field_val64)
+shr_uint32_array_to_uint64(uint32_t *field_val, uint64_t *field_val64)
 {
-    *field_val64 = (((uint64_t_fixme)field_val[1]) << 32) | field_val[0];
+    *field_val64 = (((uint64_t)field_val[1]) << 32) | field_val[0];
 }
 
 #endif /* SHR_UTIL_H */

@@ -5,7 +5,7 @@
 /*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef BCMA_CLI_PARSE_H
@@ -626,6 +626,7 @@ bcma_cli_parse_int_range(const char *str, int *start, int *end);
  *
  * \retval 0 No errors
  * \retval -1 Fail to parse the string to a bit array.
+ * \retval -2 Specified bits exceed the max value (out of range).
  */
 extern int
 bcma_cli_parse_bit_list(const char *str, int max_bits, SHR_BITDCL *bit_array);

@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifdef __C51__
@@ -22,7 +22,7 @@
 #include "appl/cli.h"
 #include "utils/ui.h"
 #include "utils/system.h"
-#ifdef _BCM95333X_    
+#ifdef _BCM95333X_
 #include "soc/bcm5333x.h"
 #endif /* _BCM95333X_ */
 
@@ -36,6 +36,7 @@
 
 #ifdef CFG_SDKCLI_INCLUDED
 #include "appl/sdkcli/bcma_cli.h"
+#include "appl/sdkcli/bcma_cli_unit.h"
 #include "appl/sdkcli/bcma_clicmd.h"
 #include "appl/editline/bcma_readline.h"
 #endif /* CFG_SDKCLI_INCLUDED */
@@ -113,8 +114,8 @@ APISTATIC void cli_cmd_phy_reg_set(CLI_CMD_OP op) REENTRANT;
 #else /* CFG_PCM_SUPPORT_INCLUDED */
 
 /*
- *  Move the PHY access commmand to ui_pcm when CFG_PCM_SUPPORT_INCLUDED 
- */ 
+ *  Move the PHY access commmand to ui_pcm when CFG_PCM_SUPPORT_INCLUDED
+ */
 extern void cli_cmd_phy_reg_get(CLI_CMD_OP op) REENTRANT;
 extern void cli_cmd_phy_reg_set(CLI_CMD_OP op) REENTRANT;
 
@@ -139,10 +140,6 @@ APISTATIC void cli_cmd_switch_xcmd_builder(CLI_CMD_OP op) REENTRANT;
 char xcmd_builder_buffer[XCMD_BUILDER_BUFFER_LEN];
 #endif /* CFG_XCOMMAND_BUILDER_CLI_INCLUDED */
 #endif /* CFG_XCOMMAND_INCLUDED */
-
-#ifdef CFG_SDKCLI_INCLUDED
-APISTATIC void cli_cmd_switch_sdkcli_shell(CLI_CMD_OP op) REENTRANT;
-#endif /* CFG_SDKCLI_INCLUDED */
 
 #if defined(CFG_SWITCH_L2_ADDR_INCLUDED)
 APISTATIC void cli_cmd_l2(CLI_CMD_OP op) REENTRANT;
@@ -194,7 +191,7 @@ APIFUNC(cli_cmd_switch_xcmd_builder)(CLI_CMD_OP op) REENTRANT
             xcmd_builder_buffer[len] = 0;
             if (sal_strlen(xcmd_builder_buffer) >= (XCMD_BUILDER_BUFFER_LEN - 512)) {
                 sal_printf("The usage of xcmd_builder_buffer is %d bytes and is close to %d bytes!"
-                           "Need to expand the size of xcmd_builder_buffer\n", 
+                           "Need to expand the size of xcmd_builder_buffer\n",
                            sal_strlen(xcmd_builder_buffer), XCMD_BUILDER_BUFFER_LEN);
             } else {
                 sal_printf("OUTPUT:\n\n");
@@ -209,136 +206,6 @@ APIFUNC(cli_cmd_switch_xcmd_builder)(CLI_CMD_OP op) REENTRANT
 }
 #endif /* CFG_XCOMMAND_BUILDER_CLI_INCLUDED */
 #endif /* CFG_XCOMMAND_INCLUDED */
-
-#ifdef CFG_SDKCLI_INCLUDED
-#include <stdio.h>
-#include <unistd.h>
-
-extern char get_char(void);
-extern int um_console_write(const char *buffer,int length);
-extern void sal_console_init(int reset);
-
-
-static int
-bcma_io_term_read(void *buf, int max)
-{
-    if (!buf) {
-        return 0;
-    } else {
-        char *c = buf;
-        *c = get_char();
-        return 1;
-    }
-}
-
-static int
-bcma_io_term_write(const void *buf, int count)
-{
-    const char *c_buf = buf;
-    return um_console_write(c_buf, count);
-}
-
-
-int
-bcma_io_term_mode_set(int reset)
-{
-    sal_console_init(reset);
-    return 0;
-}
-
-int
-bcma_io_term_winsize_get(int *cols, int *rows)
-{
-    if (cols == NULL || rows == NULL) {
-        return -1;
-    }
-    *cols = 80;
-    *rows = 24;
-    return 0;
-}
-
-
-static bcma_editline_io_cb_t el_io_cb = {
-    bcma_io_term_read,
-    bcma_io_term_write,
-    bcma_io_term_mode_set,
-    bcma_io_term_winsize_get,
-    NULL,
-    NULL
-};
-
-APISTATIC int
-sdkcli_gets(struct bcma_cli_s *cli, const char *prompt, int max, char *buf)
-{
-    char *str = NULL;
-
-    if (((int)sal_strlen(buf) + 1) >= max) {
-        return BCMA_CLI_CMD_BAD_ARG;
-    }
-
-    str = readline(prompt); /* provided by editline */
-    if (str == NULL) {
-        return BCMA_CLI_CMD_EXIT;
-    } else {
-        int len = sal_strlen(str) + 1;
-        sal_memcpy(buf, str, len > max ? max : len);
-        buf[max - 1] = '\0';
-    }
-    bcma_rl_free(str); /* free the memory that allocated by editline */
-    return BCMA_CLI_CMD_OK;
-}
-
-APISTATIC void
-sdkcli_history_add(int max, char *str)
-{
-    char *cmd_last = NULL;
-    char *p = str;
-
-    /* Remove the heading spaces if any. */
-    while (p && sal_isspace(*p)) {
-        p++;
-    }
-
-    /* Do no add empty string to history. */
-    if (!p || !*p) {
-        return;
-    }
-
-    /* Do not add the last duplicate command to history */
-    cmd_last = bcma_editline_history_get(-1);
-    if (cmd_last && sal_strcmp(p, cmd_last) == 0) {
-        return;
-    }
-
-    /* Add command to history */
-    add_history(p);
-}
-
-
-APISTATIC void
-APIFUNC(cli_cmd_switch_sdkcli_shell)(CLI_CMD_OP op) REENTRANT
-
-{
-    if (op == CLI_CMD_OP_HELP) {
-        sal_printf("Command to enter sdkcli shell.\n");
-    } else if (op == CLI_CMD_OP_DESC) {
-        sal_printf("Command to enter sdkcli shell.\n");
-    } else {
-        bcma_cli_t *sdk_cli = NULL;
-
-        /* Initialize SDK-version of readline */
-        bcma_editline_init(&el_io_cb, NULL);
-
-        sdk_cli = bcma_cli_create();
-        bcma_cli_input_cb_set(sdk_cli, "SDKCLI", sdkcli_gets, sdkcli_history_add);
-        bcma_clicmd_add_basic_cmds(sdk_cli);
-        bcma_clicmd_add_switch_cmds(sdk_cli);
-        bcma_cli_cmd_loop(sdk_cli);
-        bcma_cli_destroy(sdk_cli);
-        sdk_cli = NULL;
-    }
-}
-#endif /* CFG_SDKCLI_INCLUDED */
 
 #ifdef BRD_VLAN_DEBUG   /* included in CFG_SWITCH_VLAN_INCLUDED */
 extern void _brdimpl_dump_vlan_info(void) REENTRANT;
@@ -397,7 +264,7 @@ APIFUNC(cli_cmd_phy_reg_get)(CLI_CMD_OP op) REENTRANT
     ui_ret_t rv;
     phy_ctrl_t *pc = NULL, *pc_temp = NULL;
     uint32_t data;
-    
+
 
     if (op == CLI_CMD_OP_HELP) {
         sal_printf("Command to get PHY register value.\n");
@@ -410,10 +277,10 @@ APIFUNC(cli_cmd_phy_reg_get)(CLI_CMD_OP op) REENTRANT
                     sal_printf("User port range from %d to %d\n", SAL_NZUPORT_TO_UPORT(1), board_uport_count());
                     return;
                 }
-                   
+
                 board_uport_to_lport(uport, &unit, &lport);
 
-#ifdef _BCM95333X_ 
+#ifdef _BCM95333X_
                 if (!SOC_IS_DEERHOUND(unit) && lport < PHY_SECOND_QGPHY_PORT0) {
                     /* Get chip local port for BMD_PORT_PHY_CTRL for FH */
                     lport = SOC_PORT_P2L_MAPPING(lport);
@@ -426,7 +293,7 @@ APIFUNC(cli_cmd_phy_reg_get)(CLI_CMD_OP op) REENTRANT
                     sal_printf("There is no valid phy driver\n");
                     return;
                 }
-            
+
                 sal_printf(" 0: %s addr=0x%x on bus %d\n", pc->drv->drv_name, (pc->addr & 0x1f), (pc->addr & 0x40) ? 1 : 0);
 
                 max_index ++;
@@ -445,12 +312,12 @@ APIFUNC(cli_cmd_phy_reg_get)(CLI_CMD_OP op) REENTRANT
                        sal_printf("Invalid choice.\n");
                        return;
                    }
-                }                
+                }
 
-            } 
+            }
 
             if (ui_get_dword(&addr, "Reg address: ") == UI_RET_OK) {
-                
+
                 if (rw == 0) {
                     pc_temp = pc;
                 } else {
@@ -500,7 +367,7 @@ APIFUNC(cli_cmd_phy_reg_set)(CLI_CMD_OP op) REENTRANT
     ui_ret_t rv;
     uint32_t data;
     phy_ctrl_t *pc = NULL, *pc_temp = NULL;
-    
+
     if (op == CLI_CMD_OP_HELP) {
         sal_printf("Command to set PHY register value.\n");
     } else if (op == CLI_CMD_OP_DESC) {
@@ -508,7 +375,7 @@ APIFUNC(cli_cmd_phy_reg_set)(CLI_CMD_OP op) REENTRANT
     } else {
 
         if (ui_get_decimal(&uport, "User port: ") == UI_RET_OK) {
-        
+
             if (SAL_UPORT_IS_NOT_VALID(uport)) {
                 sal_printf("User port range from %d to %d\n", SAL_NZUPORT_TO_UPORT(1), board_uport_count());
                 return;
@@ -516,7 +383,7 @@ APIFUNC(cli_cmd_phy_reg_set)(CLI_CMD_OP op) REENTRANT
 
             board_uport_to_lport(uport, &unit, &lport);
 
-#ifdef _BCM95333X_ 
+#ifdef _BCM95333X_
             if (!SOC_IS_DEERHOUND(unit) && lport < PHY_SECOND_QGPHY_PORT0) {
                 /* Get chip local port for BMD_PORT_PHY_CTRL for FH */
                 lport = SOC_PORT_P2L_MAPPING(lport);
@@ -524,21 +391,21 @@ APIFUNC(cli_cmd_phy_reg_set)(CLI_CMD_OP op) REENTRANT
 #endif /* _BCM95333X_ */
 
             pc = BMD_PORT_PHY_CTRL(0, lport);
-        
+
             if (pc == NULL) {
                 sal_printf("There is no valid phy driver\n");
                 return;
             }
-        
+
             sal_printf(" 0: %s addr=0x%x on bus %d\n", pc->drv->drv_name, (pc->addr & 0x1f), (pc->addr & 0x40) ? 1 : 0);
-        
+
             max_index ++;
-        
+
             if (pc->next != NULL) {
                 sal_printf(" 1: %s addr=0x%x on bus %d\n", pc->next->drv->drv_name, (pc->next->addr & 0x1f), (pc->next->addr & 0x40) ? 1 : 0);
                 max_index ++;
             }
-        
+
             rv = ui_get_decimal(&rw, "Enter your choice: [0] ");
 
             if (rv == UI_RET_EMPTY || rv == UI_RET_OK) {
@@ -550,7 +417,7 @@ APIFUNC(cli_cmd_phy_reg_set)(CLI_CMD_OP op) REENTRANT
                 }
             }
 
-        } 
+        }
         if(ui_get_dword(&addr, "reg address: ") == UI_RET_OK &&
             ui_get_dword(&data, "data: ") == UI_RET_OK) {
 
@@ -559,7 +426,7 @@ APIFUNC(cli_cmd_phy_reg_set)(CLI_CMD_OP op) REENTRANT
             } else {
                 pc_temp = pc->next;
             }
-            
+
             if ((addr & PHY_REG_ACC_MASK) == PHY_REG_ACC_BRCM_SHADOW) {
                 r = phy_brcm_shadow_write(pc_temp, addr, data);
             } else if ((addr & PHY_REG_ACC_MASK) == PHY_REG_ACC_BRCM_1000X) {
@@ -976,7 +843,7 @@ APIFUNC(cli_cmd_snake)(CLI_CMD_OP op) REENTRANT
                 return;
             }
 
-            if ((val32 == SNAKETEST_TYPE_INT_MAC) || 
+            if ((val32 == SNAKETEST_TYPE_INT_MAC) ||
                 (val32 == SNAKETEST_TYPE_INT_PHY) ||
                 (val32 == SNAKETEST_TYPE_EXT)) {
                 if ((max_uport - min_uport + 1) < 2 ) {
@@ -988,10 +855,10 @@ APIFUNC(cli_cmd_snake)(CLI_CMD_OP op) REENTRANT
                     sal_printf("Min port must start from an odd number.\n");
                     return;
                 }
-                
+
                 if ((max_uport - min_uport + 1) % 2) {
                     sal_printf("Total testing ports must be the multiple of 2.\n");
-                    return;            
+                    return;
                 } else {
                     if (val32 == SNAKETEST_TYPE_PORT_PAIR) {
                         sal_printf("Please connect cable for port pair");
@@ -1011,9 +878,9 @@ APIFUNC(cli_cmd_snake)(CLI_CMD_OP op) REENTRANT
                             sal_printf("Total testing ports must be larger than or equal to 4.\n");
                             return;
                         }
-                    }                
+                    }
                 }
-            } 
+            }
 
             snaketest((uint8)val32, (uint8)min_uport, (uint8)max_uport, (int)duration);
             sal_printf("\nPlease reboot system to recover setting from snake test !\n");
@@ -1023,6 +890,7 @@ APIFUNC(cli_cmd_snake)(CLI_CMD_OP op) REENTRANT
     }
 }
 #endif
+uint8 board_linkup_message = 0;
 uint8 board_linkdown_message = 0;
 uint8 board_upload_vc = 0;
 
@@ -1036,16 +904,17 @@ APIFUNC(ui_switch_misc)(CLI_CMD_OP op) REENTRANT {
             sal_printf("Command to configure switch misc feature");
         } else {
             sal_printf("0: Link scan enable/disable\n");
-            sal_printf("1: Link down message enable/disable\n");
+            sal_printf("1: Link up message enable/disable (only for bcm5607x platform)\n");
+            sal_printf("2: Link down message enable/disable\n");
 #ifdef CFG_VENDOR_CONFIG_SUPPORT_INCLUDED
-            sal_printf("2: Upload vendor config enable/disable\n");
+            sal_printf("3: Upload vendor config enable/disable\n");
 #endif /* CFG_VENDOR_CONFIG_SUPPORT_INCLUDED */
             if (ui_get_byte(&select, "Please select: ") == UI_RET_OK) {
                  switch (select) {
                     case 0:
                          sal_printf("  0: Enable link scan \n"
                                     "  1: Disable link scan \n");
-                         if (ui_get_byte(&select, "select: ") == UI_RET_OK) { 
+                         if (ui_get_byte(&select, "select: ") == UI_RET_OK) {
                              if (select == 0) {
                                 board_linkscan_disable = 0;
                              } else if (select == 1) {
@@ -1054,9 +923,20 @@ APIFUNC(ui_switch_misc)(CLI_CMD_OP op) REENTRANT {
                          }
                     break;
                     case 1:
+                         sal_printf("  0: Disable link up message \n"
+                                    "  1: Enable link up message \n");
+                         if (ui_get_byte(&select, "select: ") == UI_RET_OK) {
+                             if (select == 0) {
+                                board_linkup_message = 0;
+                             } else if (select == 1) {
+                                board_linkup_message = 1;
+                             }
+                         }
+                    break;
+                    case 2:
                          sal_printf("  0: Disable link down message \n"
                                     "  1: Enable link down message \n");
-                         if (ui_get_byte(&select, "select: ") == UI_RET_OK) { 
+                         if (ui_get_byte(&select, "select: ") == UI_RET_OK) {
                              if (select == 0) {
                                 board_linkdown_message = 0;
                              } else if (select == 1) {
@@ -1065,10 +945,10 @@ APIFUNC(ui_switch_misc)(CLI_CMD_OP op) REENTRANT {
                          }
                     break;
 #ifdef CFG_VENDOR_CONFIG_SUPPORT_INCLUDED
-                    case 2:
+                    case 3:
                          sal_printf("  0: Disable vendor config upload \n"
                                     "  1: Enable vendor config upload \n");
-                         if (ui_get_byte(&select, "select: ") == UI_RET_OK) { 
+                         if (ui_get_byte(&select, "select: ") == UI_RET_OK) {
                              if (select == 0) {
                                 board_upload_vc = 0;
                              } else if (select == 1) {
@@ -1296,8 +1176,8 @@ APIFUNC(cli_cmd_l2)(CLI_CMD_OP op) REENTRANT
             } else {
                 multicast_bit = l2addr.mac[0] & 0x1;
                 sal_printf("First L2 address found at index 0x%x\n", index);
-                sal_printf("     MAC 0x%2x-%2x-%2x-%2x-%2x-%2x\n", 
-                    l2addr.mac[0], l2addr.mac[1], l2addr.mac[2], 
+                sal_printf("     MAC 0x%2x-%2x-%2x-%2x-%2x-%2x\n",
+                    l2addr.mac[0], l2addr.mac[1], l2addr.mac[2],
                     l2addr.mac[3], l2addr.mac[4], l2addr.mac[5]);
                 sal_printf("     VID %d\n", l2addr.vid);
                 sal_printf("     %s %d\n", multicast_bit ? STRING_MCINDEX : (l2addr.is_trunk ? STRING_TGID : STRING_UPORT),
@@ -1312,8 +1192,8 @@ APIFUNC(cli_cmd_l2)(CLI_CMD_OP op) REENTRANT
             } else {
                 multicast_bit = l2addr.mac[0] & 0x1;
                 sal_printf("Next L2 address found at index 0x%x\n", index);
-                sal_printf("     MAC 0x%2x-%2x-%2x-%2x-%2x-%2x\n", 
-                    l2addr.mac[0], l2addr.mac[1], l2addr.mac[2], 
+                sal_printf("     MAC 0x%2x-%2x-%2x-%2x-%2x-%2x\n",
+                    l2addr.mac[0], l2addr.mac[1], l2addr.mac[2],
                     l2addr.mac[3], l2addr.mac[4], l2addr.mac[5]);
                 sal_printf("     VID %d\n", l2addr.vid);
                 sal_printf("     %s %d\n", multicast_bit ? STRING_MCINDEX : (l2addr.is_trunk ? STRING_TGID : STRING_UPORT),
@@ -1328,8 +1208,8 @@ APIFUNC(cli_cmd_l2)(CLI_CMD_OP op) REENTRANT
             } else {
                 multicast_bit = l2addr.mac[0] & 0x1;
                 sal_printf("Last L2 address found at index 0x%x\n", index);
-                sal_printf("     MAC 0x%2x-%2x-%2x-%2x-%2x-%2x\n", 
-                    l2addr.mac[0], l2addr.mac[1], l2addr.mac[2], 
+                sal_printf("     MAC 0x%2x-%2x-%2x-%2x-%2x-%2x\n",
+                    l2addr.mac[0], l2addr.mac[1], l2addr.mac[2],
                     l2addr.mac[3], l2addr.mac[4], l2addr.mac[5]);
                 sal_printf("     VID %d\n", l2addr.vid);
                 sal_printf("     %s %d\n", multicast_bit ? STRING_MCINDEX : (l2addr.is_trunk ? STRING_TGID : STRING_UPORT),
@@ -1345,9 +1225,9 @@ APIFUNC(cli_cmd_l2)(CLI_CMD_OP op) REENTRANT
                 i++;
                 sal_printf("Below L2 addresses found at L2 ENTRY table\n");
                 multicast_bit = l2addr.mac[0] & 0x1;
-                sal_printf(" [%5d]   Index 0x%4x   MAC 0x%2x-%2x-%2x-%2x-%2x-%2x   VID %4d   %s %4d   %s\n", 
-                    i, index, l2addr.mac[0], l2addr.mac[1], l2addr.mac[2], 
-                    l2addr.mac[3], l2addr.mac[4], l2addr.mac[5], l2addr.vid, 
+                sal_printf(" [%5d]   Index 0x%4x   MAC 0x%2x-%2x-%2x-%2x-%2x-%2x   VID %4d   %s %4d   %s\n",
+                    i, index, l2addr.mac[0], l2addr.mac[1], l2addr.mac[2],
+                    l2addr.mac[3], l2addr.mac[4], l2addr.mac[5], l2addr.vid,
                     multicast_bit ? STRING_MCINDEX : (l2addr.is_trunk ? STRING_TGID : STRING_UPORT),
                     multicast_bit ? l2addr.mcidx : (l2addr.is_trunk ? l2addr.tgid : l2addr.uport),
                     l2addr.flags & BOARD_L2_STATIC ? STRING_STATIC : STRING_EMPTY);
@@ -1361,9 +1241,9 @@ APIFUNC(cli_cmd_l2)(CLI_CMD_OP op) REENTRANT
                     } else {
                         i++;
                         multicast_bit = l2addr.mac[0] & 0x1;
-                        sal_printf(" [%5d]   Index 0x%4x   MAC 0x%2x-%2x-%2x-%2x-%2x-%2x   VID %4d   %s %4d   %s\n", 
-                            i, index, l2addr.mac[0], l2addr.mac[1], l2addr.mac[2], 
-                            l2addr.mac[3], l2addr.mac[4], l2addr.mac[5], l2addr.vid, 
+                        sal_printf(" [%5d]   Index 0x%4x   MAC 0x%2x-%2x-%2x-%2x-%2x-%2x   VID %4d   %s %4d   %s\n",
+                            i, index, l2addr.mac[0], l2addr.mac[1], l2addr.mac[2],
+                            l2addr.mac[3], l2addr.mac[4], l2addr.mac[5], l2addr.vid,
                             multicast_bit ? STRING_MCINDEX : (l2addr.is_trunk ? STRING_TGID : STRING_UPORT),
                             multicast_bit ? l2addr.mcidx : (l2addr.is_trunk ? l2addr.tgid : l2addr.uport),
                             l2addr.flags & BOARD_L2_STATIC ? STRING_STATIC : STRING_EMPTY);
@@ -1407,10 +1287,6 @@ APIFUNC(ui_switch_init)(void) REENTRANT
     cli_add_cmd('b', cli_cmd_switch_xcmd_builder);
 #endif /* CFG_XCOMMAND_BUILDER_CLI_INCLUDED */
 #endif /* CFG_XCOMMAND_INCLUDED */
-
-#ifdef CFG_SDKCLI_INCLUDED
-    cli_add_cmd('X', cli_cmd_switch_sdkcli_shell);
-#endif /* CFG_SDKCLI_INCLUDED */
 
      cli_add_cmd('l', ui_switch_misc);
 #if defined(CFG_SWITCH_L2_ADDR_INCLUDED)

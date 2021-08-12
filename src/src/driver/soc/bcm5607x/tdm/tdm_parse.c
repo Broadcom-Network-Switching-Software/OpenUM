@@ -2,7 +2,7 @@
  * $Id: tdm_parse.c,v 1.1 Broadcom SDK $
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  * All Rights Reserved.$
  *
  * TDM core parsing functions

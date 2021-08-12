@@ -5,15 +5,13 @@
 /*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef SHR_TYPES_H
 #define SHR_TYPES_H
 
-#include "system.h"
-
-typedef unsigned long long       uint64_t_fixme;
+#include "types.h"
 
 /*! IPv4 header version. */
 #define SHR_IPV4_VERSION                4

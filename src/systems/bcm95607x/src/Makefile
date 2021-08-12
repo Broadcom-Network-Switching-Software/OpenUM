@@ -1,7 +1,7 @@
 # $Id: Makefile,v 1.1 Broadcom SDK $
 # This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
 # 
-# Copyright 2007-2020 Broadcom Inc. All rights reserved.
+# Copyright 2007-2021 Broadcom Inc. All rights reserved.
 
 #
 # This is just a Makefile fragment -- it is included by the master
@@ -30,12 +30,13 @@ CRT0OBJS += low_mem.o
 # arm architecture
 endif
 
-CRT0OBJS += cache.o vector.o intr_entry.o
-CRT0OBJS += tick.o
+CRT0OBJS += vector.o intr_entry.o
 #ALLOBJS += exchandler.o
 
-BSPOBJS += board_init.o board.o exchandler.o config.o board_gpio.o wdt.o
-BSPOBJS += board_intr.o
+CRT0OBJS += tick.o cache.o
+BSPOBJS += exchandler.o config.o wdt.o
+BOARDAPIOBJS += board_init.o board.o board_gpio.o board_intr.o board_coe.o
+BOARDAPIOBJS += board_port.o board_temp.o board_led.o board_link.o board_mcs.o
 
 #ifneq ($(strip ${CFG_ROMCODE}),1)
 #BSPOBJS += board.o

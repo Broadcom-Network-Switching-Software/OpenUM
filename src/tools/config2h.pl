@@ -1,10 +1,10 @@
 #!/usr/bin/perl -w
 #
-# $Id: config2h.pl,v 1.5 Broadcom SDK $
+# $Id$
 # 
 # This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
 # 
-# Copyright 2007-2020 Broadcom Inc. All rights reserved.
+# Copyright 2007-2021 Broadcom Inc. All rights reserved.
 # 
 
 
@@ -32,7 +32,7 @@ our $CONFIG_VAR_TYPE_DECIMAL = "dec";
 # Copyright
 #
 ######################################################
-our $copy_right = "/*\n * \$Id\$\n *\n * \$Copyright: (c) 2014 Broadcom Corp.\n * All Rights Reserved.\$\n *\n */\n\n";
+our $copy_right = "/*\n * \$Id\$\n *\n * \$Copyright: (c) 2021 Broadcom Corp.\n * All Rights Reserved.\$\n *\n */\n\n";
 
 
 ######################################################

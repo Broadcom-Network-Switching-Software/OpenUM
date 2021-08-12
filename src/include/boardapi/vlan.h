@@ -1,9 +1,11 @@
-/*
- * $Id: vlan.h,v 1.6 Broadcom SDK $
+/*! \file vlan.h
  *
+ * VLAN board APIs.
+ */
+/*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #ifndef _BOARDAPI_VLAN_H_
@@ -170,6 +172,7 @@ extern uint16 board_vlan_count(void) REENTRANT;
  * \param [out] vlan_id QVLAN ID number.
  * \param [out] uplist VLAN members port list number.
  * \param [out] tag_uplist VLAN tagged members port list number.
+ * \param [in] get_uplist Return the user port list or not.
  *
  * \retval SYS_OK No errors.
  */

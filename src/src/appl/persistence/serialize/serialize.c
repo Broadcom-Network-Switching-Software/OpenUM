@@ -3,7 +3,7 @@
  *
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #define SERIALIZE_DEBUG   0 /* 1-5 for debug depth */
@@ -46,6 +46,7 @@ static int32 max_strlen;
 #endif /* CFG_PERSISTENCE_STRING_SUPPORT_INCLUDED */
 static SERIALIZE_OP current_op;
 
+#if SERIALIZE_DEBUG
 static const char * const CODE op_captions[] = {
     "COUNT",
     "LOAD",
@@ -56,6 +57,7 @@ static const char * const CODE op_captions[] = {
     "VALIDATE",
     "VALIDATE_DEFAULTS",
 };
+#endif /* SERIALIZE_DEBUG */
 
 #ifdef CFG_PERSISTENCE_STRING_SUPPORT_INCLUDED
 STATICCBK const char *

@@ -5,7 +5,7 @@
 /*
  * This license is set out in https://raw.githubusercontent.com/Broadcom-Network-Switching-Software/OpenUM/master/Legal/LICENSE file.
  * 
- * Copyright 2007-2020 Broadcom Inc. All rights reserved.
+ * Copyright 2007-2021 Broadcom Inc. All rights reserved.
  */
 
 #include "system.h"
@@ -35,8 +35,8 @@ bcma_cli_parse_bit_list(const char *str, int max_bits, SHR_BITDCL *bit_array)
             }
             bnum = (bnum * 10) + (ch - '0');
             if (bnum >= max_bits) {
-                /* buffer is not enough */
-                return -1;
+                /* Exceed the max value (out of range) */
+                return -2;
             }
         } else {
             if (bstart >= 0) {
